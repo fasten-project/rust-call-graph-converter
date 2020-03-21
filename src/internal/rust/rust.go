@@ -67,14 +67,16 @@ func addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edg
 		targetIndex := int64(edge[1].(float64))
 		sourcePkg := methods[sourceIndex]
 		targetPkg := methods[targetIndex]
+		source := jsons[sourcePkg]
+		target := jsons[targetPkg]
 
 		if targetPkg != sourcePkg {
-			addDependency(jsons[sourcePkg], jsons[targetPkg])
+			addDependency(source, target)
 
-			jsons[sourcePkg].Graph.ExternalCalls = append(jsons[sourcePkg].Graph.ExternalCalls,
-				[]interface{}{sourceIndex, "///" + getTargetMethod(jsons[targetPkg].Cha, targetIndex)})
+			source.Graph.ExternalCalls = append(source.Graph.ExternalCalls,
+				[]interface{}{sourceIndex, "///" + getTargetMethod(target.Cha, targetIndex)})
 		} else {
-			jsons[sourcePkg].Graph.InternalCalls = append(jsons[sourcePkg].Graph.InternalCalls,
+			source.Graph.InternalCalls = append(source.Graph.InternalCalls,
 				[]int64{sourceIndex, targetIndex})
 		}
 	}

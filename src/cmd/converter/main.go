@@ -70,9 +70,10 @@ func consumeTopic() {
 	}
 }
 
-// Consumes rust call graphs from Kafka topic
+// Consumes rust call graphs from Kafka topic and
+// converts them to an array of Fasten JSONs
 func consume(ctx context.Context) []fasten.JSON {
-	m, err := consumer.FetchMessage(ctx)
+	m, err := consumer.ReadMessage(ctx)
 
 	if err != nil {
 		// Ignore context canceled error
