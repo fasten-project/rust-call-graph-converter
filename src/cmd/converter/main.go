@@ -1,0 +1,124 @@
+package main
+
+import (
+	"RustCallGraphConverter/src/internal/fasten"
+	"RustCallGraphConverter/src/internal/rust"
+	"context"
+	"encoding/json"
+	"flag"
+	"github.com/segmentio/kafka-go"
+	"log"
+	"os"
+	"os/signal"
+	"time"
+)
+
+var broker = flag.String("b", "localhost:9092", "broker address in format host:port")
+var group = flag.String("g", "default", "consumer group")
+var consumeKafkaTopic = flag.String("c", "default.consume.topic", "kafka topic to consume")
+var produceKafkaTopic = flag.String("p", "default.produce.topic", "kafka topic to send to")
+
+var producer *kafka.Writer
+var consumer *kafka.Reader
+
+func main() {
+	// Parse command line parameters
+	flag.Parse()
+
+	// Initialize Kafka consumer and producer
+	consumer = kafka.NewReader(kafka.ReaderConfig{
+		Brokers:        []string{*broker},
+		GroupID:        *group,
+		Topic:          *consumeKafkaTopic,
+		CommitInterval: time.Second,
+	})
+	log.Printf("Created consumer [broker: %s, group: %s, topic: %s]... ", *broker, *group, *consumeKafkaTopic)
+
+	producer = kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  []string{*broker},
+		Topic:    *produceKafkaTopic,
+		Balancer: &kafka.LeastBytes{},
+	})
+	log.Printf("Created producer [broker: %s, topic: %s]... ", *broker, *produceKafkaTopic)
+
+	// Properly close Kafka consumer and producer after successful consumption
+	defer closeConnection()
+
+	// Consume topic and convert Rust call graphs to Fasten format
+	consumeTopic()
+}
+
+// Consumes Kafka topic containing Rust call graphs until interrupt signal has been caught
+func consumeTopic() {
+	log.Printf("Started consuming topic [@%s]", *consumeKafkaTopic)
+	ctx := interruptContext()
+
+	// Consumes topic and sends FastenCG to Kafka topic until the context is canceled with Ctrl + C
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("Successfully finished consuming topic")
+			return
+		default:
+			convertedCG := consume(ctx)
+			for _, cg := range convertedCG {
+				if !cg.IsEmpty() {
+					sendToKafka(cg.ToJSON())
+				}
+			}
+		}
+	}
+}
+
+// Consumes rust call graphs from Kafka topic
+func consume(ctx context.Context) []fasten.JSON {
+	m, err := consumer.FetchMessage(ctx)
+
+	if err != nil {
+		// Ignore context canceled error
+		if err.Error() != "context canceled" {
+			log.Printf("%% Error: %v", err.Error())
+		}
+		return []fasten.JSON{}
+	} else {
+		var rustGraph rust.JSON
+		_ = json.Unmarshal(m.Value, &rustGraph)
+		log.Printf("%% Consumed record [@%s] at offset %d", m.Topic, m.Offset)
+		return rustGraph.ConvertToFastenJson()
+	}
+}
+
+// Sends fasten call graphs to Kafka
+func sendToKafka(msg []byte) {
+	_ = producer.WriteMessages(context.Background(),
+		kafka.Message{
+			Value: msg,
+		},
+	)
+}
+
+// Creates context that cancels when Ctrl + C is caught
+func interruptContext() context.Context {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt)
+		defer signal.Stop(c)
+
+		select {
+		case <-ctx.Done():
+		case <-c:
+			cancel()
+		}
+	}()
+	return ctx
+}
+
+// Closes Kafka consumer and Producer
+func closeConnection() {
+	_ = consumer.Close()
+	log.Printf("Closed consumer")
+	_ = producer.Close()
+	log.Printf("Closed producer")
+}
