@@ -9,19 +9,16 @@ import (
 type JSON struct {
 	Nodes     []Node          `json:"nodes"`
 	Edges     [][]interface{} `json:"edges"`
-	NodesInfo []Metadata      `json:"nodes_info"`
 }
 
 type Node struct {
-	Id              int64  `json:"id"`
-	Package         string `json:"package"`
-	CrateName       string `json:"crate_name"`
-	RelativeDefPath string `json:"relative_def_path"`
-}
-
-type Metadata struct {
-	Id            int64 `json:"id"`
-	NumberOfLines int64 `json:"num_lines"`
+	Id                int64  `json:"id"`
+	PackageName       string `json:"package_name"`
+	PackageVersion    string `json:"package_version"`
+	CrateName         string `json:"crate_name"`
+	RelativeDefPath   string `json:"relative_def_id"`
+	ExternallyVisible bool	 `json:"is_externally_visible"`
+	NumberOfLines     int64  `json:"num_lines"`
 }
 
 //Converts rustJSON to FastenJSON
@@ -30,21 +27,20 @@ func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
 	var methods = make(map[int64]string)
 
 	for _, node := range rustJSON.Nodes {
-		if _, ok := jsons[node.Package]; !ok {
-			name, version := resolveNameAndVersion(node.Package)
-			jsons[node.Package] = &fasten.JSON{
-				Product:   name,
+		if _, ok := jsons[node.PackageName]; !ok {
+			jsons[node.PackageName] = &fasten.JSON{
+				Product:   node.PackageName,
 				Forge:     "cratesio",
 				Generator: "rust-callgraphs",
 				Depset:    [][]fasten.Dependency{},
-				Version:   version,
+				Version:   node.PackageVersion,
 				Cha:       map[string]fasten.Type{},
 				Graph:     fasten.CallGraph{},
 				Timestamp: -1,
 			}
 		}
 		addMethodToCHA(jsons, node)
-		methods[node.Id] = node.Package
+		methods[node.Id] = node.PackageName
 	}
 
 	for _, edge := range rustJSON.Edges {
@@ -89,7 +85,7 @@ func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
 	for _, value := range cha {
 		for key, method := range value.Methods {
 			if key == targetIndex {
-				return formatRelativeDefPath(method)
+				return method
 			}
 		}
 	}
@@ -98,7 +94,7 @@ func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
 
 // Add method to Class Hierarchy.
 func addMethodToCHA(jsons map[string]*fasten.JSON, node Node) {
-	fastenJSON := jsons[node.Package]
+	fastenJSON := jsons[node.PackageName]
 	if _, exists := fastenJSON.Cha[node.CrateName]; !exists {
 		fastenJSON.Cha[node.CrateName] = fasten.Type{
 			Methods: map[int64]string{},
@@ -127,18 +123,6 @@ func addDependency(source *fasten.JSON, target *fasten.JSON) {
 		Forge:       "cratesio",
 		Constraints: []string{target.Version},
 	}})
-}
-
-// Given package field from rust.Node returns name and version of it.
-func resolveNameAndVersion(pkg string) (string, string) {
-	pattern := regexp.MustCompile(" [0-9]")
-	slice := pattern.FindStringIndex(pkg)
-
-	if len(slice) > 0 {
-		return pkg[:slice[0]], pkg[slice[0]+1:]
-	} else {
-		return pkg, ""
-	}
 }
 
 // TODO: improve parsing of relative_def_path
