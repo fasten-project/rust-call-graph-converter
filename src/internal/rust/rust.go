@@ -3,6 +3,7 @@ package rust
 import (
 	"RustCallGraphConverter/src/internal/fasten"
 	"regexp"
+	"strings"
 )
 
 type JSON struct {
@@ -88,7 +89,7 @@ func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
 	for _, value := range cha {
 		for key, method := range value.Methods {
 			if key == targetIndex {
-				return parseMethod(method)
+				return formatRelativeDefPath(method)
 			}
 		}
 	}
@@ -104,7 +105,7 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node) {
 		}
 	}
 	typeValue := fastenJSON.Cha[node.CrateName]
-	typeValue.Methods[node.Id] = parseMethod(node.RelativeDefPath)
+	typeValue.Methods[node.Id] = formatRelativeDefPath(node.RelativeDefPath)
 }
 
 // In case package of source method is different from the package of
@@ -140,10 +141,35 @@ func resolveNameAndVersion(pkg string) (string, string) {
 	}
 }
 
-// TODO: learn how to parse relative_def_path
-// WIP: Supposed to parse a relative_def_path and convert
-// it to Fasten format.
-func parseMethod(defPath string) string {
-	pattern := regexp.MustCompile("::")
-	return pattern.ReplaceAllString(defPath, "/")
+// TODO: improve parsing of relative_def_path
+// Converts relative_def_path to namespace/method() fasten format
+func formatRelativeDefPath(relativeDefPath string) string {
+	crate, modules, method := parseRelativeDefPath(relativeDefPath)
+	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
+
+	methodName := "/" + squareBracketsPattern.ReplaceAllString(crate, "")
+	for _, module := range modules {
+		methodName += "/" + squareBracketsPattern.ReplaceAllString(module, "")
+	}
+	methodName += "/" + squareBracketsPattern.ReplaceAllString(method, "") + "()"
+
+	return methodName
+}
+
+// Parses relative_def_path and returns a tuple containing crate name,
+// array of modules and method name
+func parseRelativeDefPath(relativeDefPath string) (string, []string, string) {
+	elements := strings.Split(relativeDefPath, "::")
+	if len(elements) < 2 {
+		panic("Incorrect path")
+	}
+	if len(elements) == 2 {
+		return elements[0], []string{}, elements[1]
+	}
+
+	var modules []string
+	for i := 1; i < len(elements)-1; i++ {
+		modules = append(modules, elements[i])
+	}
+	return elements[0], modules, elements[len(elements)-1]
 }
