@@ -6,9 +6,11 @@ import (
 	"strings"
 )
 
+// CallGraph
 type JSON struct {
-	Nodes     []Node          `json:"nodes"`
-	Edges     [][]interface{} `json:"edges"`
+	Functions     []Node          `json:"functions"`
+	Macros        []Node          `json:"macros"`
+	FunctionCalls [][]interface{} `json:"function_calls"`
 }
 
 type Node struct {
@@ -16,9 +18,40 @@ type Node struct {
 	PackageName       string `json:"package_name"`
 	PackageVersion    string `json:"package_version"`
 	CrateName         string `json:"crate_name"`
-	RelativeDefPath   string `json:"relative_def_id"`
-	ExternallyVisible bool	 `json:"is_externally_visible"`
+	RelativeDefId     string `json:"relative_def_id"`
+	ExternallyVisible bool   `json:"is_externally_visible"`
 	NumberOfLines     int64  `json:"num_lines"`
+}
+
+// TypeHierarchy
+type TypeHierarchy struct {
+	Types  []Type  `json:"types"`
+	Traits []Trait `json:"traits"`
+	Impls  []Impl  `json:"impls"`
+}
+
+type Type struct {
+	Id             int64  `json:"id"`
+	StringId       string `json:"string_id"`
+	PackageName    string `json:"package_name"`
+	PackageVersion string `json:"package_version"`
+	RelativeDefId  string `json:"relative_def_id"`
+}
+
+type Trait struct {
+	Id             int64  `json:"id"`
+	PackageName    string `json:"package_name"`
+	PackageVersion string `json:"package_version"`
+	RelativeDefId  string `json:"relative_def_id"`
+}
+
+type Impl struct {
+	Id             int64  `json:"id"`
+	TypeId         int64  `json:"type_id"`
+	TraitId        int64  `json:"trait_id"`
+	PackageName    string `json:"package_name"`
+	PackageVersion string `json:"package_version"`
+	RelativeDefId  string `json:"relative_def_id"`
 }
 
 //Converts rustJSON to FastenJSON
@@ -26,7 +59,7 @@ func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 
-	for _, node := range rustJSON.Nodes {
+	for _, node := range rustJSON.Functions {
 		if _, ok := jsons[node.PackageName]; !ok {
 			jsons[node.PackageName] = &fasten.JSON{
 				Product:   node.PackageName,
@@ -43,7 +76,7 @@ func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
 		methods[node.Id] = node.PackageName
 	}
 
-	for _, edge := range rustJSON.Edges {
+	for _, edge := range rustJSON.FunctionCalls {
 		addCallToGraph(jsons, methods, edge)
 	}
 
@@ -101,7 +134,7 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node) {
 		}
 	}
 	typeValue := fastenJSON.Cha[node.CrateName]
-	typeValue.Methods[node.Id] = formatRelativeDefPath(node.RelativeDefPath)
+	typeValue.Methods[node.Id] = formatRelativeDefPath(node.RelativeDefId)
 }
 
 // In case package of source method is different from the package of
