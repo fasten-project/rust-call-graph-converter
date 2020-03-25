@@ -54,6 +54,7 @@ type Impl struct {
 	RelativeDefId  string `json:"relative_def_id"`
 }
 
+// TODO: no support for the latest format
 //Converts rustJSON to FastenJSON
 func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
 	var jsons = make(map[string]*fasten.JSON)
@@ -79,9 +80,7 @@ func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
 	for _, edge := range rustJSON.FunctionCalls {
 		addCallToGraph(jsons, methods, edge)
 	}
-
-	// TODO: Something should be done about nodes_info
-
+	
 	var result []fasten.JSON
 	for _, value := range jsons {
 		result = append(result, *value)
