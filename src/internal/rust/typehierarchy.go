@@ -115,3 +115,13 @@ func (typeHierarchy MapTypeHierarchy) resolveTypeHierarchyReference(relativeDefI
 	}
 	return relativeDefId, ""
 }
+
+func getNamespace(method string) string {
+	elements := strings.Split(method, "/")
+	elements = elements[:len(elements) - 1]
+	namespace := ""
+	for _, elem := range elements {
+		namespace += "/" + elem
+	}
+	return namespace
+}

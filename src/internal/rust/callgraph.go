@@ -21,8 +21,6 @@ type Node struct {
 	NumberOfLines     int64  `json:"num_lines"`
 }
 
-// TODO: no support for the latest format
-// TODO: old version. Placeholder for testing purposes
 //Converts rustJSON to FastenJSON
 func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []fasten.JSON {
 	var jsons = make(map[string]*fasten.JSON)
@@ -73,7 +71,7 @@ func addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edg
 			addDependency(source, target)
 
 			source.Graph.ExternalCalls = append(source.Graph.ExternalCalls,
-				[]interface{}{sourceIndex, "///" + getTargetMethod(target.Cha, targetIndex)})
+				[]interface{}{sourceIndex, "//" + target.Product + getTargetMethod(target.Cha, targetIndex)})
 		} else {
 			source.Graph.InternalCalls = append(source.Graph.InternalCalls,
 				[]int64{sourceIndex, targetIndex})
@@ -85,11 +83,7 @@ func addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edg
 // full target method from a class hierarchy of a target package.
 func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
 	for _, value := range cha {
-		for key, method := range value.Methods {
-			if key == targetIndex {
-				return method
-			}
-		}
+		return value.Methods[targetIndex]
 	}
 	return ""
 }
@@ -97,19 +91,19 @@ func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
 // Add method to Class Hierarchy.
 func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
 	fastenJSON := jsons[node.PackageName]
-	if _, exists := fastenJSON.Cha[node.CrateName]; !exists {
-		fastenJSON.Cha[node.CrateName] = fasten.Type{
+	if _, exists := fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))]; !exists {
+		fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))] = fasten.Type{
 			Methods: map[int64]string{},
 		}
 	}
-	typeValue := fastenJSON.Cha[node.CrateName]
+	typeValue := fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))]
 	typeValue.Methods[node.Id] = typeHierarchy.getFullPath(node.RelativeDefId)
 }
 
 // In case package of source method is different from the package of
 // target method adds a dependency too the current JSON depset.
 func addDependency(source *fasten.JSON, target *fasten.JSON) {
-	if target.Product == "NULL" {
+	if target.Product == "" {
 		return
 	}
 	for _, inner := range source.Depset {
@@ -120,9 +114,12 @@ func addDependency(source *fasten.JSON, target *fasten.JSON) {
 			}
 		}
 	}
-	source.Depset = append(source.Depset, []fasten.Dependency{{
+	if len(source.Depset) == 0 {
+		source.Depset = append(source.Depset, []fasten.Dependency{})
+	}
+	source.Depset[0] = append(source.Depset[0], fasten.Dependency{
 		Product:     target.Product,
 		Forge:       "cratesio",
 		Constraints: []string{target.Version},
-	}})
+	})
 }
