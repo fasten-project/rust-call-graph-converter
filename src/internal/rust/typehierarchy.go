@@ -83,7 +83,7 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) string {
 // Parses relative_def_path and returns a tuple containing crate name,
 // array of modules and method name
 func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) (string, []string, string) {
-	pattern := regexp.MustCompile("::\\{\\{closure}}\\[0]")
+	pattern := regexp.MustCompile("::\\{\\{closure}}\\[[0-9]*]")
 	relativeDefId = pattern.ReplaceAllString(relativeDefId, "")
 	elements := strings.Split(relativeDefId, "::")
 	if len(elements) < 2 {
@@ -118,7 +118,7 @@ func (typeHierarchy MapTypeHierarchy) resolveTypeHierarchyReference(relativeDefI
 
 func getNamespace(method string) string {
 	elements := strings.Split(method, "/")
-	elements = elements[:len(elements) - 1]
+	elements = elements[1:len(elements) - 1]
 	namespace := ""
 	for _, elem := range elements {
 		namespace += "/" + elem

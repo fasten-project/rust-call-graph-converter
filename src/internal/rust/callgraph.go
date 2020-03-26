@@ -41,12 +41,12 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []faste
 				Timestamp: -1,
 			}
 		}
-		addMethodToCHA(jsons, node, typeHierarchy)
+		rustJSON.addMethodToCHA(jsons, node, typeHierarchy)
 		methods[node.Id] = node.PackageName
 	}
 
 	for _, edge := range rustJSON.FunctionCalls {
-		addCallToGraph(jsons, methods, edge)
+		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy)
 	}
 
 	var result []fasten.JSON
@@ -58,7 +58,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []faste
 }
 
 // Add a call to graph of a source package
-func addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edge []interface{}) {
+func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edge []interface{}, typeHierarchy MapTypeHierarchy) {
 	if edge[2] == true {
 		sourceIndex := int64(edge[0].(float64))
 		targetIndex := int64(edge[1].(float64))
@@ -68,10 +68,10 @@ func addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edg
 		target := jsons[targetPkg]
 
 		if targetPkg != sourcePkg {
-			addDependency(source, target)
+			rustJSON.addDependency(source, target)
 
 			source.Graph.ExternalCalls = append(source.Graph.ExternalCalls,
-				[]interface{}{sourceIndex, "//" + target.Product + getTargetMethod(target.Cha, targetIndex)})
+				[]interface{}{sourceIndex, "//" + target.Product + rustJSON.getTargetMethod(typeHierarchy, targetIndex)})
 		} else {
 			source.Graph.InternalCalls = append(source.Graph.InternalCalls,
 				[]int64{sourceIndex, targetIndex})
@@ -81,15 +81,12 @@ func addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edg
 
 // In case target does not belong to the source package, resolves the
 // full target method from a class hierarchy of a target package.
-func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
-	for _, value := range cha {
-		return value.Methods[targetIndex]
-	}
-	return ""
+func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, targetIndex int64) string {
+	return typeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId)
 }
 
 // Add method to Class Hierarchy.
-func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
+func (rustJSON JSON) addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
 	fastenJSON := jsons[node.PackageName]
 	if _, exists := fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))]; !exists {
 		fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))] = fasten.Type{
@@ -102,7 +99,7 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapT
 
 // In case package of source method is different from the package of
 // target method adds a dependency too the current JSON depset.
-func addDependency(source *fasten.JSON, target *fasten.JSON) {
+func (rustJSON JSON) addDependency(source *fasten.JSON, target *fasten.JSON) {
 	if target.Product == "" {
 		return
 	}

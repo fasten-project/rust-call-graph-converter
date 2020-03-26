@@ -11,7 +11,8 @@ import (
 	"strings"
 )
 
-var directory = flag.String("d", ".", "directory containing rust call graphs")
+var inputDirectory = flag.String("i", ".", "directory containing rust call graphs")
+var outputDirectory = flag.String("o", ".", "output directory for fasten call graphs")
 
 func main() {
 	flag.Parse()
@@ -26,11 +27,12 @@ func main() {
 		_ = json.Unmarshal(cgFile, &callGraph)
 		_ = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
-		// TODO: not very elegant placeholder for testing purposes. Should be replaced.
 		fasten := callGraph.ConvertToFastenJson(typeHierarchy)
-		_ = fasten
-		_ = callGraph
-		_ = typeHierarchy
+
+		for _, fastenCallGraph := range fasten {
+			fastenJson, _ := json.Marshal(fastenCallGraph)
+			_ = ioutil.WriteFile(*outputDirectory + "/" + fastenCallGraph.Product+".json", fastenJson, 0666)
+		}
 	}
 }
 
@@ -38,13 +40,13 @@ func main() {
 // as a key and an array of containing callgraph.json and type_hierarchy.json paths
 func getCallGraphs() map[string][]string {
 	callgraphs := make(map[string][]string)
-	cgs, _ := ioutil.ReadDir(*directory)
+	cgs, _ := ioutil.ReadDir(*inputDirectory)
 
 	for _, cg := range cgs {
 		if !strings.HasPrefix(cg.Name(), ".") {
-			_ = filepath.Walk(*directory+"/"+cg.Name(), func(path string, f os.FileInfo, err error) error {
+			_ = filepath.Walk(*inputDirectory+"/"+cg.Name(), func(path string, f os.FileInfo, err error) error {
 				if f.Mode().IsRegular() && !strings.HasPrefix(f.Name(), ".") {
-					packageName := strings.TrimPrefix(path, *directory)
+					packageName := strings.TrimPrefix(path, *inputDirectory)
 					filename := strings.Split(packageName, string(filepath.Separator))
 					packageName = strings.TrimSuffix(packageName, filename[len(filename)-1])
 					callgraphs[packageName] = append(callgraphs[packageName], path)
