@@ -18,20 +18,33 @@ func main() {
 	flag.Parse()
 	callgraphs := getCallGraphs()
 
-	for key, files := range callgraphs {
-		log.Printf("Parsing package: %s", key)
+	for pkg, files := range callgraphs {
+		log.Printf("Converting: %s", pkg)
 		cgFile, typeHierarchyFile := getFiles(files)
 
 		var callGraph rust.JSON
 		var typeHierarchy rust.TypeHierarchy
-		_ = json.Unmarshal(cgFile, &callGraph)
-		_ = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
+		err := json.Unmarshal(cgFile, &callGraph)
+		err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
 		fasten := callGraph.ConvertToFastenJson(typeHierarchy)
 
+		path := *outputDirectory + "/fasten" + pkg
+		err = os.MkdirAll(path, 0755)
 		for _, fastenCallGraph := range fasten {
-			fastenJson, _ := json.Marshal(fastenCallGraph)
-			_ = ioutil.WriteFile(*outputDirectory + "/" + fastenCallGraph.Product+".json", fastenJson, 0666)
+			if !fastenCallGraph.IsEmpty() {
+				fastenJson, _ := json.Marshal(fastenCallGraph)
+				f, err := os.Create(path + fastenCallGraph.Product + ".json")
+				if err == nil {
+					_, err = f.Write(fastenJson)
+					err = f.Close()
+				}
+			}
+		}
+		if err != nil {
+			log.Printf("Failed to convert: %s", pkg)
+		} else {
+			log.Printf("Succesfully converted: %s", pkg)
 		}
 	}
 }
