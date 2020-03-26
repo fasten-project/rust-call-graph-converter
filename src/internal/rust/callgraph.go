@@ -2,7 +2,6 @@ package rust
 
 import (
 	"RustCallGraphConverter/src/internal/fasten"
-	"regexp"
 )
 
 // CallGraph
@@ -25,9 +24,11 @@ type Node struct {
 // TODO: no support for the latest format
 // TODO: old version. Placeholder for testing purposes
 //Converts rustJSON to FastenJSON
-func (rustJSON JSON) ConvertToFastenJson(typeHierarchy TypeHierarchy) []fasten.JSON {
+func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []fasten.JSON {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
+
+	typeHierarchy := rawTypeHierarchy.convertToMap()
 
 	for _, node := range append(rustJSON.Functions, rustJSON.Macros...) {
 		if _, ok := jsons[node.PackageName]; !ok {
@@ -42,7 +43,7 @@ func (rustJSON JSON) ConvertToFastenJson(typeHierarchy TypeHierarchy) []fasten.J
 				Timestamp: -1,
 			}
 		}
-		addMethodToCHA(jsons, node)
+		addMethodToCHA(jsons, node, typeHierarchy)
 		methods[node.Id] = node.PackageName
 	}
 
@@ -94,7 +95,7 @@ func getTargetMethod(cha map[string]fasten.Type, targetIndex int64) string {
 }
 
 // Add method to Class Hierarchy.
-func addMethodToCHA(jsons map[string]*fasten.JSON, node Node) {
+func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
 	fastenJSON := jsons[node.PackageName]
 	if _, exists := fastenJSON.Cha[node.CrateName]; !exists {
 		fastenJSON.Cha[node.CrateName] = fasten.Type{
@@ -102,7 +103,7 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node) {
 		}
 	}
 	typeValue := fastenJSON.Cha[node.CrateName]
-	typeValue.Methods[node.Id] = formatRelativeDefPath(node.RelativeDefId)
+	typeValue.Methods[node.Id] = typeHierarchy.getFullPath(node.RelativeDefId)
 }
 
 // In case package of source method is different from the package of
@@ -124,19 +125,4 @@ func addDependency(source *fasten.JSON, target *fasten.JSON) {
 		Forge:       "cratesio",
 		Constraints: []string{target.Version},
 	}})
-}
-
-// TODO: improve parsing of relative_def_path
-// Converts relative_def_path to namespace/method() fasten format
-func formatRelativeDefPath(relativeDefPath string) string {
-	crate, modules, method := parseRelativeDefPath(relativeDefPath)
-	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
-
-	methodName := "/" + squareBracketsPattern.ReplaceAllString(crate, "")
-	for _, module := range modules {
-		methodName += "/" + squareBracketsPattern.ReplaceAllString(module, "")
-	}
-	methodName += "/" + squareBracketsPattern.ReplaceAllString(method, "") + "()"
-
-	return methodName
 }
