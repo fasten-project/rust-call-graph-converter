@@ -3,7 +3,6 @@ package rust
 import (
 	"RustCallGraphConverter/src/internal/fasten"
 	"regexp"
-	"strings"
 )
 
 // CallGraph
@@ -23,44 +22,14 @@ type Node struct {
 	NumberOfLines     int64  `json:"num_lines"`
 }
 
-// TypeHierarchy
-type TypeHierarchy struct {
-	Types  []Type  `json:"types"`
-	Traits []Trait `json:"traits"`
-	Impls  []Impl  `json:"impls"`
-}
-
-type Type struct {
-	Id             int64  `json:"id"`
-	StringId       string `json:"string_id"`
-	PackageName    string `json:"package_name"`
-	PackageVersion string `json:"package_version"`
-	RelativeDefId  string `json:"relative_def_id"`
-}
-
-type Trait struct {
-	Id             int64  `json:"id"`
-	PackageName    string `json:"package_name"`
-	PackageVersion string `json:"package_version"`
-	RelativeDefId  string `json:"relative_def_id"`
-}
-
-type Impl struct {
-	Id             int64  `json:"id"`
-	TypeId         int64  `json:"type_id"`
-	TraitId        int64  `json:"trait_id"`
-	PackageName    string `json:"package_name"`
-	PackageVersion string `json:"package_version"`
-	RelativeDefId  string `json:"relative_def_id"`
-}
-
 // TODO: no support for the latest format
+// TODO: old version. Placeholder for testing purposes
 //Converts rustJSON to FastenJSON
-func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
+func (rustJSON JSON) ConvertToFastenJson(typeHierarchy TypeHierarchy) []fasten.JSON {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 
-	for _, node := range rustJSON.Functions {
+	for _, node := range append(rustJSON.Functions, rustJSON.Macros...) {
 		if _, ok := jsons[node.PackageName]; !ok {
 			jsons[node.PackageName] = &fasten.JSON{
 				Product:   node.PackageName,
@@ -80,7 +49,7 @@ func (rustJSON JSON) ConvertToFastenJson() []fasten.JSON {
 	for _, edge := range rustJSON.FunctionCalls {
 		addCallToGraph(jsons, methods, edge)
 	}
-	
+
 	var result []fasten.JSON
 	for _, value := range jsons {
 		result = append(result, *value)
@@ -170,22 +139,4 @@ func formatRelativeDefPath(relativeDefPath string) string {
 	methodName += "/" + squareBracketsPattern.ReplaceAllString(method, "") + "()"
 
 	return methodName
-}
-
-// Parses relative_def_path and returns a tuple containing crate name,
-// array of modules and method name
-func parseRelativeDefPath(relativeDefPath string) (string, []string, string) {
-	elements := strings.Split(relativeDefPath, "::")
-	if len(elements) < 2 {
-		panic("Incorrect path")
-	}
-	if len(elements) == 2 {
-		return elements[0], []string{}, elements[1]
-	}
-
-	var modules []string
-	for i := 1; i < len(elements)-1; i++ {
-		modules = append(modules, elements[i])
-	}
-	return elements[0], modules, elements[len(elements)-1]
 }

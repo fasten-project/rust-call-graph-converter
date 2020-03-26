@@ -27,6 +27,8 @@ func main() {
 		_ = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
 		// TODO: not very elegant placeholder for testing purposes. Should be replaced.
+		fasten := callGraph.ConvertToFastenJson(typeHierarchy)
+		_ = fasten
 		_ = callGraph
 		_ = typeHierarchy
 	}

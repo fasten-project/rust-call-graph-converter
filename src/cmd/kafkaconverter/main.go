@@ -83,9 +83,11 @@ func consume(ctx context.Context) []fasten.JSON {
 		return []fasten.JSON{}
 	} else {
 		var rustGraph rust.JSON
+		var typeHierarchy rust.TypeHierarchy
 		_ = json.Unmarshal(m.Value, &rustGraph)
+		_ = json.Unmarshal(m.Value, &typeHierarchy)
 		log.Printf("%% Consumed record [@%s] at offset %d", m.Topic, m.Offset)
-		return rustGraph.ConvertToFastenJson()
+		return rustGraph.ConvertToFastenJson(typeHierarchy)
 	}
 }
 
