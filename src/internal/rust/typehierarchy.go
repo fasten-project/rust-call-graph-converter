@@ -80,10 +80,10 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 			resolvedModuleName := typeHierarchy.getTypeFromTypeHierarchy(relativeDefId)
 			fullPath += "/" + resolvedModuleName
 		} else {
-			fullPath += "/" + squareBracketsPattern.ReplaceAllString(module, "")
+			fullPath += "." + squareBracketsPattern.ReplaceAllString(module, "")
 		}
 	}
-	fullPath += "/" + squareBracketsPattern.ReplaceAllString(method, "") + "()"
+	fullPath += "." + squareBracketsPattern.ReplaceAllString(method, "") + "()"
 
 	return fullPath, err
 }
@@ -127,7 +127,7 @@ func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId st
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
 		if implementation.TraitId != 0 {
 			id := implementation.TraitId
-			return typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId
+			return getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId)
 		}
 	}
 	return ""
@@ -136,11 +136,21 @@ func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId st
 // Extract the namespace from the full type info by removing the the function name
 // at the end
 func getNamespace(method string) string {
-	elements := strings.Split(method, "/")
-	elements = elements[1 : len(elements)-1]
-	namespace := ""
-	for _, elem := range elements {
-		namespace += "/" + elem
+	index := strings.LastIndex(method, ".")
+	return method[:index]
+}
+
+func getTraitPath(relativeDefId string) string {
+	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
+	relativeDefId = squareBracketsPattern.ReplaceAllString(relativeDefId, "")
+
+	elements := strings.Split(relativeDefId, "::")
+
+	path := "/"
+	for _, elem := range elements[:len(elements) - 2] {
+		path += elem + "."
 	}
-	return namespace
+	path += elements[len(elements) - 2] + "/" + elements[len(elements) - 1]
+
+	return path
 }
