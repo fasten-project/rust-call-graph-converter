@@ -1,6 +1,7 @@
 package main
 
 import (
+	"RustCallGraphConverter/src/internal/fasten"
 	"RustCallGraphConverter/src/internal/rust"
 	"encoding/json"
 	"flag"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var inputDirectory = flag.String("i", ".", "directory containing rust call graphs")
@@ -19,7 +21,6 @@ func main() {
 	callgraphs := getCallGraphs()
 
 	for pkg, files := range callgraphs {
-		log.Printf("Converting: %s", pkg)
 		cgFile, typeHierarchyFile := getFiles(files)
 
 		var callGraph rust.JSON
@@ -27,24 +28,16 @@ func main() {
 		err := json.Unmarshal(cgFile, &callGraph)
 		err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
-		fasten := callGraph.ConvertToFastenJson(typeHierarchy)
+		start := time.Now()
+		fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy)
+		end := time.Since(start).Seconds()
 
-		path := *outputDirectory + "/fasten" + pkg
-		err = os.MkdirAll(path, 0755)
-		for _, fastenCallGraph := range fasten {
-			if !fastenCallGraph.IsEmpty() {
-				fastenJson, _ := json.Marshal(fastenCallGraph)
-				f, err := os.Create(path + fastenCallGraph.Product + ".json")
-				if err == nil {
-					_, err = f.Write(fastenJson)
-					err = f.Close()
-				}
-			}
-		}
-		if err != nil {
-			log.Printf("Failed to convert: %s", pkg)
+		err = writeCallGraphs(fastenCallGraphs, pkg)
+
+		if err == nil {
+			log.Printf("Succesfully converted: %s in %f sec", pkg, end)
 		} else {
-			log.Printf("Succesfully converted: %s", pkg)
+			log.Printf("Failed to convert: %s, ERROR: %s", pkg, err)
 		}
 	}
 }
@@ -86,4 +79,22 @@ func getFiles(files []string) ([]byte, []byte) {
 	}
 
 	return cgFile, typeHierarchyFile
+}
+
+// Writes an array of given fasten call graphs to "specified_at_startup_directory"/fasten/pkg
+func writeCallGraphs(fastenCallGraphs []fasten.JSON, pkg string) error {
+	path := *outputDirectory + "/fasten" + pkg
+	err := os.MkdirAll(path, 0755)
+
+	for _, fastenCallGraph := range fastenCallGraphs {
+		if !fastenCallGraph.IsEmpty() {
+			fastenJson, _ := json.Marshal(fastenCallGraph)
+			f, err := os.Create(path + fastenCallGraph.Product + ".json")
+			if err == nil {
+				_, err = f.Write(fastenJson)
+				err = f.Close()
+			}
+		}
+	}
+	return err
 }

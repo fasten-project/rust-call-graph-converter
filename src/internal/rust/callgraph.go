@@ -22,7 +22,7 @@ type Node struct {
 }
 
 //Converts rustJSON to FastenJSON
-func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []fasten.JSON {
+func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 
@@ -41,7 +41,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []faste
 				Timestamp: -1,
 			}
 		}
-		rustJSON.addMethodToCHA(jsons, node, typeHierarchy)
+		addMethodToCHA(jsons, node, typeHierarchy)
 		methods[node.Id] = node.PackageName
 	}
 
@@ -54,11 +54,12 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) []faste
 		result = append(result, *value)
 	}
 
-	return result
+	return result, nil
 }
 
 // Add a call to graph of a source package
-func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string, edge []interface{}, typeHierarchy MapTypeHierarchy) {
+func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string,
+	edge []interface{}, typeHierarchy MapTypeHierarchy) {
 	if edge[2] == true {
 		sourceIndex := int64(edge[0].(float64))
 		targetIndex := int64(edge[1].(float64))
@@ -68,13 +69,12 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 		target := jsons[targetPkg]
 
 		if targetPkg != sourcePkg {
-			rustJSON.addDependency(source, target)
+			source.AddDependency(target)
 
-			source.Graph.ExternalCalls = append(source.Graph.ExternalCalls,
-				[]interface{}{sourceIndex, "//" + target.Product + rustJSON.getTargetMethod(typeHierarchy, targetIndex)})
+			source.AddExternalCall(sourceIndex, "//"+target.Product+
+				rustJSON.getTargetMethod(typeHierarchy, targetIndex))
 		} else {
-			source.Graph.InternalCalls = append(source.Graph.InternalCalls,
-				[]int64{sourceIndex, targetIndex})
+			source.AddInternalCall(sourceIndex, targetIndex)
 		}
 	}
 }
@@ -82,41 +82,19 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 // In case target does not belong to the source package, resolves the
 // full target method from a class hierarchy of a target package.
 func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, targetIndex int64) string {
-	return typeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId)
+	if path, err := typeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
+		return path
+	}
+	return ""
 }
 
 // Add method to Class Hierarchy.
-func (rustJSON JSON) addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
+func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
 	fastenJSON := jsons[node.PackageName]
-	if _, exists := fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))]; !exists {
-		fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))] = fasten.Type{
-			Methods: map[int64]string{},
-		}
-	}
-	typeValue := fastenJSON.Cha[getNamespace(typeHierarchy.getFullPath(node.RelativeDefId))]
-	typeValue.Methods[node.Id] = typeHierarchy.getFullPath(node.RelativeDefId)
+	path, _ := typeHierarchy.getFullPath(node.RelativeDefId)
+	namespace := getNamespace(path)
+	
+	fastenJSON.AddMethodToCHA(namespace, node.Id, path)
+	fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
 }
 
-// In case package of source method is different from the package of
-// target method adds a dependency too the current JSON depset.
-func (rustJSON JSON) addDependency(source *fasten.JSON, target *fasten.JSON) {
-	if target.Product == "" {
-		return
-	}
-	for _, inner := range source.Depset {
-		for _, dependency := range inner {
-			if dependency.Product == target.Product &&
-				dependency.Constraints[0] == target.Version {
-				return
-			}
-		}
-	}
-	if len(source.Depset) == 0 {
-		source.Depset = append(source.Depset, []fasten.Dependency{})
-	}
-	source.Depset[0] = append(source.Depset[0], fasten.Dependency{
-		Product:     target.Product,
-		Forge:       "cratesio",
-		Constraints: []string{target.Version},
-	})
-}
