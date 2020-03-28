@@ -25,6 +25,7 @@ type Node struct {
 func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
+	var edgeMap = make(map[int64]int64)
 
 	typeHierarchy := rawTypeHierarchy.convertToMap()
 
@@ -41,12 +42,13 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fast
 				Timestamp: -1,
 			}
 		}
-		addMethodToCHA(jsons, node, typeHierarchy)
+		id := addMethodToCHA(jsons, node, typeHierarchy)
+		edgeMap[node.Id] = id
 		methods[node.Id] = node.PackageName
 	}
 
 	for _, edge := range rustJSON.FunctionCalls {
-		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy)
+		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy, edgeMap)
 	}
 
 	var result []fasten.JSON
@@ -59,7 +61,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fast
 
 // Add a call to graph of a source package
 func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string,
-	edge []interface{}, typeHierarchy MapTypeHierarchy) {
+	edge []interface{}, typeHierarchy MapTypeHierarchy, edgeMap map[int64]int64) {
 	if edge[2] == true {
 		sourceIndex := int64(edge[0].(float64))
 		targetIndex := int64(edge[1].(float64))
@@ -71,10 +73,10 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 		if targetPkg != sourcePkg {
 			source.AddDependency(target)
 
-			source.AddExternalCall(sourceIndex, "//"+target.Product+
+			source.AddExternalCall(edgeMap[sourceIndex], "//"+target.Product+
 				rustJSON.getTargetMethod(typeHierarchy, targetIndex))
 		} else {
-			source.AddInternalCall(sourceIndex, targetIndex)
+			source.AddInternalCall(edgeMap[sourceIndex], edgeMap[targetIndex])
 		}
 	}
 }
@@ -89,12 +91,13 @@ func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, targetIndex
 }
 
 // Add method to Class Hierarchy.
-func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) {
+func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) int64 {
 	fastenJSON := jsons[node.PackageName]
 	path, _ := typeHierarchy.getFullPath(node.RelativeDefId)
 	namespace := getNamespace(path)
-	
-	fastenJSON.AddMethodToCHA(namespace, node.Id, path)
-	fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
-}
 
+	id := fastenJSON.AddMethodToCHA(namespace, path)
+	fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
+
+	return id
+}

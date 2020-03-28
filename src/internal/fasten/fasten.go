@@ -13,6 +13,8 @@ type JSON struct {
 	Cha       map[string]Type `json:"cha,omitempty"`
 	Graph     CallGraph       `json:"graph,omitempty"`
 	Timestamp int64           `json:"timestamp,omitempty"`
+
+	Counter int64 `json:"-"`
 }
 
 type Dependency struct {
@@ -71,14 +73,17 @@ func (fastenJSON *JSON) AddDependency(target *JSON) {
 }
 
 // Add method to Class Hierarchy.
-func (fastenJSON *JSON) AddMethodToCHA(namespace string, methodId int64, methodName string) {
+func (fastenJSON *JSON) AddMethodToCHA(namespace string, methodName string) int64 {
 	if methodName == "" {
-		return
+		return -1
 	}
 
 	fastenJSON.initializeCHANamespace(namespace)
 
-	fastenJSON.Cha[namespace].Methods[methodId] = methodName
+	fastenJSON.Cha[namespace].Methods[fastenJSON.Counter] = methodName
+	fastenJSON.Counter++
+
+	return fastenJSON.Counter - 1
 }
 
 // Add interface to Class Hierarchy.
