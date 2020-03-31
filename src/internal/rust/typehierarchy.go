@@ -62,7 +62,9 @@ func (typeHierarchy TypeHierarchy) convertToMap() MapTypeHierarchy {
 	typeHierarchy.Traits = nil
 
 	for _, implInstance := range typeHierarchy.Impls {
-		mapTypeHierarchy.Impls[implInstance.RelativeDefId] = implInstance
+		fourCharIdPattern := regexp.MustCompile("\\[.{4}]")
+		relativeDefId := fourCharIdPattern.ReplaceAllString(implInstance.RelativeDefId, "")
+		mapTypeHierarchy.Impls[relativeDefId] = implInstance
 	}
 	typeHierarchy.Impls = nil
 
@@ -85,14 +87,17 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 	}
 	fullPath += "." + squareBracketsPattern.ReplaceAllString(method, "") + "()"
 
-	return fullPath, err
+	return cleanPath(fullPath), err
 }
 
+// TODO: add type to the return
 // Parses relative_def_path and returns a tuple containing crate name,
 // array of modules and method name
 func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) (string, []string, string, error) {
-	pattern := regexp.MustCompile("::{{closure}}\\[[0-9]*]")
-	relativeDefId = pattern.ReplaceAllString(relativeDefId, "")
+	patternClosure := regexp.MustCompile("::{{closure}}\\[[0-9]*]")
+	patternConstant := regexp.MustCompile("::{{constant}}\\[[0-9]*]")
+	relativeDefId = patternClosure.ReplaceAllString(relativeDefId, "")
+	relativeDefId = patternConstant.ReplaceAllString(relativeDefId, "")
 	elements := strings.Split(relativeDefId, "::")
 	if len(elements) < 2 {
 		panic("Incorrect path")
@@ -112,9 +117,11 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 // in the list of Impls inside the type hierarchy. Returns the respective Type and Trait
 func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId string) string {
 	pattern := regexp.MustCompile("^.*{{impl}}\\[[0-9]*]")
+	fourCharIdPattern := regexp.MustCompile("\\[.{4}]")
 	relativeDefId = pattern.FindString(relativeDefId)
+	relativeDefId = fourCharIdPattern.ReplaceAllString(relativeDefId, "")
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
-		return typeHierarchy.Types[implementation.TypeId].StringId
+		return cleanPath(typeHierarchy.Types[implementation.TypeId].StringId)
 	}
 	return relativeDefId
 }
@@ -123,11 +130,13 @@ func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId str
 // in the list of Impls inside the type hierarchy. Returns the respective Type and Trait
 func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId string) string {
 	pattern := regexp.MustCompile("^.*{{impl}}\\[[0-9]*]")
+	fourCharIdPattern := regexp.MustCompile("\\[.{4}]")
 	relativeDefId = pattern.FindString(relativeDefId)
+	relativeDefId = fourCharIdPattern.ReplaceAllString(relativeDefId, "")
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
 		if implementation.TraitId != 0 {
 			id := implementation.TraitId
-			return getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId)
+			return cleanPath(getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId))
 		}
 	}
 	return ""
@@ -151,6 +160,30 @@ func getTraitPath(relativeDefId string) string {
 		path += elem + "."
 	}
 	path += elements[len(elements) - 2] + "/" + elements[len(elements) - 1]
+
+	return cleanPath(path)
+}
+
+func cleanPath(path string) string {
+	doubleSlashPattern := regexp.MustCompile("//")
+	whitespacePattern := regexp.MustCompile("\\s")
+	referencePattern := regexp.MustCompile("&")
+	mutPattern := regexp.MustCompile("mut")
+	dotAtTheEndPattern := regexp.MustCompile("\\.?$")
+	doubleDotPattern := regexp.MustCompile("\\.\\.")
+	pointerPattern := regexp.MustCompile("\\*")
+	constPattern := regexp.MustCompile("const")
+	dynPattern := regexp.MustCompile("dyn")
+
+	path = doubleSlashPattern.ReplaceAllString(path, "")
+	path = whitespacePattern.ReplaceAllString(path, "")
+	path = referencePattern.ReplaceAllString(path, "")
+	path = mutPattern.ReplaceAllString(path, "")
+	path = dotAtTheEndPattern.ReplaceAllString(path, "")
+	path = doubleDotPattern.ReplaceAllString(path, "")
+	path = pointerPattern.ReplaceAllString(path, "")
+	path = constPattern.ReplaceAllString(path, "")
+	path = dynPattern.ReplaceAllString(path, "")
 
 	return path
 }

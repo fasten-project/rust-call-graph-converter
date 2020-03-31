@@ -30,9 +30,9 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fast
 	typeHierarchy := rawTypeHierarchy.convertToMap()
 
 	for _, node := range append(rustJSON.Functions, rustJSON.Macros...) {
-		if _, ok := jsons[node.PackageName]; !ok {
-			jsons[node.PackageName] = &fasten.JSON{
-				Product:   node.PackageName,
+		if _, ok := jsons[node.CrateName]; !ok {
+			jsons[node.CrateName] = &fasten.JSON{
+				Product:   node.CrateName,
 				Forge:     "cratesio",
 				Generator: "rust-callgraphs",
 				Depset:    [][]fasten.Dependency{},
@@ -44,7 +44,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fast
 		}
 		id := addMethodToCHA(jsons, node, typeHierarchy)
 		edgeMap[node.Id] = id
-		methods[node.Id] = node.PackageName
+		methods[node.Id] = node.CrateName
 	}
 
 	for _, edge := range rustJSON.FunctionCalls {
@@ -92,7 +92,7 @@ func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, targetIndex
 
 // Add method to Class Hierarchy.
 func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) int64 {
-	fastenJSON := jsons[node.PackageName]
+	fastenJSON := jsons[node.CrateName]
 	path, _ := typeHierarchy.getFullPath(node.RelativeDefId)
 	namespace := getNamespace(path)
 
