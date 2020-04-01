@@ -1,6 +1,7 @@
 package rust
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 )
@@ -44,7 +45,7 @@ type MapTypeHierarchy struct {
 }
 
 // Convert data of type hierarchy read from json to a map for simplifying queries
-func (typeHierarchy TypeHierarchy) convertToMap() MapTypeHierarchy {
+func (typeHierarchy TypeHierarchy) ConvertToMap() MapTypeHierarchy {
 	mapTypeHierarchy := MapTypeHierarchy{
 		Types:  make(map[int64]Type),
 		Traits: make(map[int64]Trait),
@@ -73,31 +74,42 @@ func (typeHierarchy TypeHierarchy) convertToMap() MapTypeHierarchy {
 
 // Converts a relativeDefPath to the path in Fasten format.
 func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string, error) {
-	crate, modules, method, err := typeHierarchy.parseRelativeDefPath(relativeDefId)
-	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
+	var err error
+	_, modules, method, err := typeHierarchy.parseRelativeDefPath(relativeDefId)
 
-	fullPath := "/" + squareBracketsPattern.ReplaceAllString(crate, "")
-	for _, module := range modules {
-		if strings.Contains(module, "{{impl}}") {
-			resolvedModuleName := typeHierarchy.getTypeFromTypeHierarchy(relativeDefId)
-			fullPath += "/" + resolvedModuleName
+	fullPath := "/"
+	for i := 0; i < len(modules); i++  {
+		if strings.Contains(modules[i], "{{impl}}") {
+			var resolvedTypeName string
+			resolvedTypeName, err = typeHierarchy.getTypeFromTypeHierarchy(relativeDefId)
+			if strings.Contains(resolvedTypeName, "[") {
+				resolvedTypeName = resolvedTypeName[1:len(resolvedTypeName) - 1] + "%25255B%25255D"
+			}
+			fullPath += "/" + resolvedTypeName
 		} else {
-			fullPath += "." + squareBracketsPattern.ReplaceAllString(module, "")
+			if i == 0 {
+				fullPath += modules[i]
+			} else {
+				fullPath += "." + modules[i]
+			}
 		}
 	}
-	fullPath += "." + squareBracketsPattern.ReplaceAllString(method, "") + "()"
+	fullPath += "." + method + "()"
 
-	return cleanPath(fullPath), err
+	return fullPath, err
 }
 
-// TODO: add type to the return
 // Parses relative_def_path and returns a tuple containing crate name,
 // array of modules and method name
 func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) (string, []string, string, error) {
 	patternClosure := regexp.MustCompile("::{{closure}}\\[[0-9]*]")
 	patternConstant := regexp.MustCompile("::{{constant}}\\[[0-9]*]")
+	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
+
 	relativeDefId = patternClosure.ReplaceAllString(relativeDefId, "")
 	relativeDefId = patternConstant.ReplaceAllString(relativeDefId, "")
+	relativeDefId = squareBracketsPattern.ReplaceAllString(relativeDefId, "")
+
 	elements := strings.Split(relativeDefId, "::")
 	if len(elements) < 2 {
 		panic("Incorrect path")
@@ -108,22 +120,26 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 
 	var modules []string
 	for i := 1; i < len(elements)-1; i++ {
-		modules = append(modules, elements[i])
+		if elements[i] != "" {
+			modules = append(modules, elements[i])
+		}
 	}
 	return elements[0], modules, elements[len(elements)-1], nil
 }
 
 // When {{impl}}[id] is present in the relativeDefPath finds the respective implementation
 // in the list of Impls inside the type hierarchy. Returns the respective Type and Trait
-func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId string) string {
+func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId string) (string, error) {
 	pattern := regexp.MustCompile("^.*{{impl}}\\[[0-9]*]")
 	fourCharIdPattern := regexp.MustCompile("\\[.{4}]")
+
 	relativeDefId = pattern.FindString(relativeDefId)
 	relativeDefId = fourCharIdPattern.ReplaceAllString(relativeDefId, "")
+
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
-		return cleanPath(typeHierarchy.Types[implementation.TypeId].StringId)
+		return cleanPath(typeHierarchy.Types[implementation.TypeId].StringId), nil
 	}
-	return relativeDefId
+	return "UNKNOWN", errors.New("no type found")
 }
 
 // When {{impl}}[id] is present in the relativeDefPath finds the respective implementation
@@ -136,7 +152,7 @@ func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId st
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
 		if implementation.TraitId != 0 {
 			id := implementation.TraitId
-			return cleanPath(getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId))
+			return getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId)
 		}
 	}
 	return ""
@@ -155,32 +171,27 @@ func getTraitPath(relativeDefId string) string {
 
 	elements := strings.Split(relativeDefId, "::")
 
-	path := "/"
-	for _, elem := range elements[:len(elements) - 2] {
-		path += elem + "."
+	// TODO: check if including crate is necessary
+	path := "/" + elements[0]
+	for _, elem := range elements[1:len(elements) - 1] {
+		path += "." + elem
 	}
-	path += elements[len(elements) - 2] + "/" + elements[len(elements) - 1]
+	path += "/" + elements[len(elements) - 1]
 
-	return cleanPath(path)
+	return path
 }
 
 func cleanPath(path string) string {
-	doubleSlashPattern := regexp.MustCompile("//")
 	whitespacePattern := regexp.MustCompile("\\s")
 	referencePattern := regexp.MustCompile("&")
 	mutPattern := regexp.MustCompile("mut")
-	dotAtTheEndPattern := regexp.MustCompile("\\.?$")
-	doubleDotPattern := regexp.MustCompile("\\.\\.")
 	pointerPattern := regexp.MustCompile("\\*")
 	constPattern := regexp.MustCompile("const")
 	dynPattern := regexp.MustCompile("dyn")
 
-	path = doubleSlashPattern.ReplaceAllString(path, "")
 	path = whitespacePattern.ReplaceAllString(path, "")
 	path = referencePattern.ReplaceAllString(path, "")
 	path = mutPattern.ReplaceAllString(path, "")
-	path = dotAtTheEndPattern.ReplaceAllString(path, "")
-	path = doubleDotPattern.ReplaceAllString(path, "")
 	path = pointerPattern.ReplaceAllString(path, "")
 	path = constPattern.ReplaceAllString(path, "")
 	path = dynPattern.ReplaceAllString(path, "")

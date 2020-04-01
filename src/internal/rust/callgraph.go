@@ -22,12 +22,12 @@ type Node struct {
 }
 
 //Converts rustJSON to FastenJSON
-func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fasten.JSON, error) {
+func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy) ([]fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 	var edgeMap = make(map[int64]int64)
 
-	typeHierarchy := rawTypeHierarchy.convertToMap()
+	typeHierarchy := rawTypeHierarchy.ConvertToMap()
 
 	for _, node := range append(rustJSON.Functions, rustJSON.Macros...) {
 		if _, ok := jsons[node.CrateName]; !ok {
@@ -48,7 +48,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fast
 	}
 
 	for _, edge := range rustJSON.FunctionCalls {
-		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy, edgeMap)
+		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy, stdTypeHierarchy, edgeMap)
 	}
 
 	var result []fasten.JSON
@@ -61,7 +61,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy) ([]fast
 
 // Add a call to graph of a source package
 func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string,
-	edge []interface{}, typeHierarchy MapTypeHierarchy, edgeMap map[int64]int64) {
+	edge []interface{}, typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, edgeMap map[int64]int64) {
 	if edge[2] == true {
 		sourceIndex := int64(edge[0].(float64))
 		targetIndex := int64(edge[1].(float64))
@@ -74,7 +74,7 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 			source.AddDependency(target)
 
 			source.AddExternalCall(edgeMap[sourceIndex], "//"+target.Product+
-				rustJSON.getTargetMethod(typeHierarchy, targetIndex))
+				rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex))
 		} else {
 			source.AddInternalCall(edgeMap[sourceIndex], edgeMap[targetIndex])
 		}
@@ -83,11 +83,14 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 
 // In case target does not belong to the source package, resolves the
 // full target method from a class hierarchy of a target package.
-func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, targetIndex int64) string {
+func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, targetIndex int64) string {
 	if path, err := typeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
 		return path
 	}
-	return ""
+	if path, err := stdTypeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
+		return path
+	}
+	return "UNKNOWN"
 }
 
 // Add method to Class Hierarchy.

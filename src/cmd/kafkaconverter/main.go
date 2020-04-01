@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"github.com/segmentio/kafka-go"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -41,15 +42,21 @@ func main() {
 	})
 	log.Printf("Created producer [broker: %s, topic: %s]... ", *broker, *produceKafkaTopic)
 
+	// Read type hierarchy of a standard library
+	var rawStdTypeHierarchy rust.TypeHierarchy
+	stdTypeHierarchyFile, _ := ioutil.ReadFile("src/internal/rust/standardlibrary/type_hierarchy.json")
+	_ = json.Unmarshal(stdTypeHierarchyFile, &rawStdTypeHierarchy)
+	stdTypeHierarchy := rawStdTypeHierarchy.ConvertToMap()
+
 	// Properly close Kafka consumer and producer after successful consumption
 	defer closeConnection()
 
 	// Consume topic and convert Rust call graphs to Fasten format
-	consumeTopic()
+	consumeTopic(stdTypeHierarchy)
 }
 
 // Consumes Kafka topic containing Rust call graphs until interrupt signal has been caught
-func consumeTopic() {
+func consumeTopic(stdTypeHierarchy rust.MapTypeHierarchy) {
 	log.Printf("Started consuming topic [@%s]", *consumeKafkaTopic)
 	ctx := interruptContext()
 
@@ -60,7 +67,7 @@ func consumeTopic() {
 			log.Printf("Successfully finished consuming topic")
 			return
 		default:
-			convertedCG := consume(ctx)
+			convertedCG := consume(ctx, stdTypeHierarchy)
 			for _, cg := range convertedCG {
 				if !cg.IsEmpty() {
 					sendToKafka(cg.ToJSON())
@@ -72,7 +79,7 @@ func consumeTopic() {
 
 // Consumes rust call graphs from Kafka topic and
 // converts them to an array of Fasten JSONs
-func consume(ctx context.Context) []fasten.JSON {
+func consume(ctx context.Context, stdTypeHierarchy rust.MapTypeHierarchy) []fasten.JSON {
 	m, err := consumer.ReadMessage(ctx)
 
 	if err != nil {
@@ -87,7 +94,8 @@ func consume(ctx context.Context) []fasten.JSON {
 		_ = json.Unmarshal(m.Value, &rustGraph)
 		_ = json.Unmarshal(m.Value, &typeHierarchy)
 		log.Printf("%% Consumed record [@%s] at offset %d", m.Topic, m.Offset)
-		return rustGraph.ConvertToFastenJson(typeHierarchy)
+		converted, _ := rustGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
+		return converted
 	}
 }
 

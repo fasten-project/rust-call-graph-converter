@@ -20,6 +20,12 @@ func main() {
 	flag.Parse()
 	callgraphs := getCallGraphs()
 
+	// Read type hierarchy of a standard library
+	var rawStdTypeHierarchy rust.TypeHierarchy
+	stdTypeHierarchyFile, _ := ioutil.ReadFile("src/internal/rust/standardlibrary/type_hierarchy.json")
+	_ = json.Unmarshal(stdTypeHierarchyFile, &rawStdTypeHierarchy)
+	stdTypeHierarchy := rawStdTypeHierarchy.ConvertToMap()
+
 	for pkg, files := range callgraphs {
 		cgFile, typeHierarchyFile := getFiles(files)
 
@@ -29,7 +35,7 @@ func main() {
 		err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
 		start := time.Now()
-		fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy)
+		fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
 		end := time.Since(start).Seconds()
 
 		err = writeCallGraphs(fastenCallGraphs, pkg)
