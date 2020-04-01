@@ -16,6 +16,7 @@ import (
 
 var inputDirectory = flag.String("i", ".", "directory containing rust call graphs")
 var outputDirectory = flag.String("o", ".", "output directory for fasten call graphs")
+var parallel = flag.Int("p", 1, "number of parallel goroutines")
 
 func main() {
 	flag.Parse()
@@ -27,10 +28,13 @@ func main() {
 	_ = json.Unmarshal(stdTypeHierarchyFile, &rawStdTypeHierarchy)
 	stdTypeHierarchy := rawStdTypeHierarchy.ConvertToMap()
 
+	guard := make(chan struct{}, *parallel)
+
 	var wg sync.WaitGroup
 	wg.Add(len(callgraphs))
 	totalStart := time.Now()
 	for pkg, files := range callgraphs {
+		guard <- struct{}{}
 		go func(pkg string, files []string) {
 			defer wg.Done()
 
@@ -52,6 +56,7 @@ func main() {
 			} else {
 				log.Printf("Failed to convert: %s, ERROR: %s", pkg, err)
 			}
+			<-guard
 		}(pkg, files)
 	}
 	wg.Wait()
