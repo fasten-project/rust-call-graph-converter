@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,26 +27,36 @@ func main() {
 	_ = json.Unmarshal(stdTypeHierarchyFile, &rawStdTypeHierarchy)
 	stdTypeHierarchy := rawStdTypeHierarchy.ConvertToMap()
 
+	var wg sync.WaitGroup
+	wg.Add(len(callgraphs))
+	totalStart := time.Now()
 	for pkg, files := range callgraphs {
-		cgFile, typeHierarchyFile := getFiles(files)
+		go func(pkg string, files []string) {
+			defer wg.Done()
 
-		var callGraph rust.JSON
-		var typeHierarchy rust.TypeHierarchy
-		err := json.Unmarshal(cgFile, &callGraph)
-		err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
+			cgFile, typeHierarchyFile := getFiles(files)
 
-		start := time.Now()
-		fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
-		end := time.Since(start).Seconds()
+			var callGraph rust.JSON
+			var typeHierarchy rust.TypeHierarchy
+			err := json.Unmarshal(cgFile, &callGraph)
+			err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
-		err = writeCallGraphs(fastenCallGraphs, pkg)
+			start := time.Now()
+			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
+			end := time.Since(start).Seconds()
 
-		if err == nil {
-			log.Printf("Succesfully converted: %s in %f sec", pkg, end)
-		} else {
-			log.Printf("Failed to convert: %s, ERROR: %s", pkg, err)
-		}
+			err = writeCallGraphs(fastenCallGraphs, pkg)
+
+			if err == nil {
+				log.Printf("Succesfully converted: %s in %f sec", pkg, end)
+			} else {
+				log.Printf("Failed to convert: %s, ERROR: %s", pkg, err)
+			}
+		}(pkg, files)
 	}
+	wg.Wait()
+	totalEnd := time.Since(totalStart).Seconds()
+	log.Printf("Processign of %d callgraphs took %f seconds", len(callgraphs), totalEnd)
 }
 
 // Walk the current directory and return a map containing a /packageName/packageVersion/
