@@ -2,6 +2,7 @@ package rust
 
 import (
 	"errors"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -75,23 +76,21 @@ func (typeHierarchy TypeHierarchy) ConvertToMap() MapTypeHierarchy {
 // Converts a relativeDefPath to the path in Fasten format.
 func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string, error) {
 	var err error
-	_, modules, method, err := typeHierarchy.parseRelativeDefPath(relativeDefId)
+	modules, impl, nestedElements, method, err := typeHierarchy.parseRelativeDefPath(relativeDefId)
 
 	fullPath := "/"
-	for i := 0; i < len(modules); i++  {
-		if strings.Contains(modules[i], "{{impl}}") {
-			var resolvedTypeName string
-			resolvedTypeName, err = typeHierarchy.getTypeFromTypeHierarchy(relativeDefId)
-			if strings.Contains(resolvedTypeName, "[") {
-				resolvedTypeName = resolvedTypeName[1:len(resolvedTypeName) - 1] + "%25255B%25255D"
-			}
-			fullPath += "/" + resolvedTypeName
+	fullPath += strings.Join(modules, ".")
+
+	if strings.Contains(impl, "[") {
+		impl = impl[1:len(impl)-1] + "[]"
+	}
+	fullPath += "/" + url.PathEscape(impl)
+
+	for _, element := range nestedElements {
+		if element[:1] == "$" {
+			fullPath += "$" + url.PathEscape(element[1:])
 		} else {
-			if i == 0 {
-				fullPath += modules[i]
-			} else {
-				fullPath += "." + modules[i]
-			}
+			fullPath += "." + url.PathEscape(element)
 		}
 	}
 	fullPath += "." + method + "()"
@@ -99,32 +98,62 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 	return fullPath, err
 }
 
-// Parses relative_def_path and returns a tuple containing crate name,
-// array of modules and method name
-func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) (string, []string, string, error) {
+// Parses relative_def_path and returns a tuple containing slice of modules,
+// resolved type name, nested functions and types, function name
+func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) ([]string, string, []string, string, error) {
 	patternClosure := regexp.MustCompile("::{{closure}}\\[[0-9]*]")
 	patternConstant := regexp.MustCompile("::{{constant}}\\[[0-9]*]")
 	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
 
-	relativeDefId = patternClosure.ReplaceAllString(relativeDefId, "")
-	relativeDefId = patternConstant.ReplaceAllString(relativeDefId, "")
-	relativeDefId = squareBracketsPattern.ReplaceAllString(relativeDefId, "")
+	var formattedRelativeDefId string
+	formattedRelativeDefId = patternClosure.ReplaceAllString(relativeDefId, "")
+	formattedRelativeDefId = patternConstant.ReplaceAllString(formattedRelativeDefId, "")
+	formattedRelativeDefId = squareBracketsPattern.ReplaceAllString(formattedRelativeDefId, "")
 
-	elements := strings.Split(relativeDefId, "::")
+	rawElements := strings.Split(relativeDefId, "::")
+	elements := strings.Split(formattedRelativeDefId, "::")
+
+	var err error = nil
 	if len(elements) < 2 {
-		panic("Incorrect path")
+		err = errors.New("incorrect path")
 	}
-	if len(elements) == 2 {
-		return elements[0], []string{}, elements[1], nil
-	}
+
+	var gotFirstImpl = false
+	var relativeDefPathCurrentLength = 0
 
 	var modules []string
+	var impl string
+	var nestedElements []string
+	var function = elements[len(elements)-1]
+
 	for i := 1; i < len(elements)-1; i++ {
+		relativeDefPathCurrentLength++
 		if elements[i] != "" {
-			modules = append(modules, elements[i])
+			if !gotFirstImpl {
+				if strings.Contains(elements[i], "{{impl}}") {
+					gotFirstImpl = true
+					currentRelativeDefId := strings.Join(rawElements[:relativeDefPathCurrentLength+1], "::")
+					impl, err = typeHierarchy.getTypeFromTypeHierarchy(currentRelativeDefId)
+				} else {
+					modules = append(modules, url.PathEscape(elements[i]))
+				}
+			} else {
+				if strings.Contains(elements[i], "{{impl}}") {
+					var nestedType string
+					currentRelativeDefId := strings.Join(rawElements[:relativeDefPathCurrentLength+1], "::")
+					nestedType, err = typeHierarchy.getTypeFromTypeHierarchy(currentRelativeDefId)
+
+					nestedElements = append(nestedElements, "$"+nestedType)
+				} else {
+					nestedElements = append(nestedElements, elements[i]+"()")
+				}
+			}
 		}
 	}
-	return elements[0], modules, elements[len(elements)-1], nil
+	if !gotFirstImpl {
+		impl = "NO-TYPE-DEFINITION"
+	}
+	return modules, impl, nestedElements, function, err
 }
 
 // When {{impl}}[id] is present in the relativeDefPath finds the respective implementation
@@ -173,10 +202,10 @@ func getTraitPath(relativeDefId string) string {
 
 	// TODO: check if including crate is necessary
 	path := "/" + elements[0]
-	for _, elem := range elements[1:len(elements) - 1] {
+	for _, elem := range elements[1 : len(elements)-1] {
 		path += "." + elem
 	}
-	path += "/" + elements[len(elements) - 1]
+	path += "/" + elements[len(elements)-1]
 
 	return path
 }
