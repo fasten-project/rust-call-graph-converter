@@ -166,7 +166,7 @@ func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId str
 	relativeDefId = fourCharIdPattern.ReplaceAllString(relativeDefId, "")
 
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
-		return cleanPath(typeHierarchy.Types[implementation.TypeId].StringId), nil
+		return typeHierarchy.Types[implementation.TypeId].StringId, nil
 	}
 	return "UNKNOWN", errors.New("no type found")
 }
@@ -210,20 +210,45 @@ func getTraitPath(relativeDefId string) string {
 	return path
 }
 
-func cleanPath(path string) string {
+func (typeHierarchy MapTypeHierarchy) isGenericType(relativeDefId string) bool {
+	rawElements := strings.Split(relativeDefId, "::")
+	length := 0
+	for _, elem := range rawElements {
+		length++
+		if strings.Contains(elem, "{{impl}}") {
+			currentRelativeDefId := strings.Join(rawElements[:length+1], "::")
+			resolvedType, _ := typeHierarchy.getTypeFromTypeHierarchy(currentRelativeDefId)
+			if len(resolvedType) > 2 && resolvedType[:1] == "(" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (typeHierarchy MapTypeHierarchy) getGenericFullPaths(fullPath string) []string {
+	var types []string
 	whitespacePattern := regexp.MustCompile("\\s")
-	referencePattern := regexp.MustCompile("&")
-	mutPattern := regexp.MustCompile("mut")
-	pointerPattern := regexp.MustCompile("\\*")
-	constPattern := regexp.MustCompile("const")
-	dynPattern := regexp.MustCompile("dyn")
+	implPattern := regexp.MustCompile("(/|\\$)%28.+?%29")
+	resolvedGenericTypes := implPattern.FindAllString(fullPath, -1)
+	resolvedGenericTypesIndices := implPattern.FindAllIndex([]byte(fullPath), -1)
 
-	path = whitespacePattern.ReplaceAllString(path, "")
-	path = referencePattern.ReplaceAllString(path, "")
-	path = mutPattern.ReplaceAllString(path, "")
-	path = pointerPattern.ReplaceAllString(path, "")
-	path = constPattern.ReplaceAllString(path, "")
-	path = dynPattern.ReplaceAllString(path, "")
+	if len(resolvedGenericTypes) == 0 {
+		return []string{fullPath}
+	}
 
-	return path
+	index := resolvedGenericTypesIndices[len(resolvedGenericTypesIndices)-1]
+	alreadyResolvedPath := fullPath[index[1]:]
+	symbol := resolvedGenericTypes[len(resolvedGenericTypes)-1][:1]
+	resolved, _ := url.PathUnescape(resolvedGenericTypes[len(resolvedGenericTypes)-1][1:])
+	resolved = whitespacePattern.ReplaceAllString(resolved, "")
+	genericTypes := strings.Split(resolved[1:len(resolved)-2], ",")
+	for _, genericType := range genericTypes {
+		genericPath := fullPath[:index[0]] + symbol + genericType
+		resolvedGenericPath := typeHierarchy.getGenericFullPaths(genericPath)
+		for _, path := range resolvedGenericPath {
+			types = append(types, path+alreadyResolvedPath)
+		}
+	}
+	return types
 }

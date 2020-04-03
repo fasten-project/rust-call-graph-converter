@@ -25,7 +25,7 @@ type Node struct {
 func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy) ([]fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
-	var edgeMap = make(map[int64]int64)
+	var edgeMap = make(map[int64][]int64)
 
 	typeHierarchy := rawTypeHierarchy.ConvertToMap()
 
@@ -61,7 +61,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 
 // Add a call to graph of a source package
 func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string,
-	edge []interface{}, typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, edgeMap map[int64]int64) {
+	edge []interface{}, typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, edgeMap map[int64][]int64) {
 	if edge[2] == true {
 		sourceIndex := int64(edge[0].(float64))
 		targetIndex := int64(edge[1].(float64))
@@ -73,34 +73,73 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 		if targetPkg != sourcePkg {
 			source.AddDependency(target)
 
-			source.AddExternalCall(edgeMap[sourceIndex], "//"+target.Product+
-				rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex))
+			for _, sourceMethod := range edgeMap[sourceIndex] {
+				for _, targetMethod := range rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex) {
+					source.AddExternalCall(sourceMethod, "//"+target.Product+targetMethod)
+				}
+			}
 		} else {
-			source.AddInternalCall(edgeMap[sourceIndex], edgeMap[targetIndex])
+			for _, sourceMethod := range edgeMap[sourceIndex] {
+				for _, targetMethod := range edgeMap[targetIndex] {
+					source.AddInternalCall(sourceMethod, targetMethod)
+				}
+			}
+
 		}
 	}
 }
 
 // In case target does not belong to the source package, resolves the
 // full target method from a class hierarchy of a target package.
-func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, targetIndex int64) string {
+func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, targetIndex int64) []string {
 	if path, err := typeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
-		return path
+		if typeHierarchy.isGenericType(rustJSON.Functions[targetIndex].RelativeDefId) {
+			return typeHierarchy.getGenericFullPaths(path)
+		}
+		return []string {path}
 	}
 	if path, err := stdTypeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
-		return path
+		if typeHierarchy.isGenericType(rustJSON.Functions[targetIndex].RelativeDefId) {
+			return typeHierarchy.getGenericFullPaths(path)
+		}
+		return []string {path}
 	}
-	return "UNKNOWN"
+	return []string{"UNKNOWN"}
 }
 
 // Add method to Class Hierarchy.
-func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) int64 {
+func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) []int64 {
 	fastenJSON := jsons[node.CrateName]
 	path, _ := typeHierarchy.getFullPath(node.RelativeDefId)
 	namespace := getNamespace(path)
 
-	id := fastenJSON.AddMethodToCHA(namespace, path)
-	fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
+	if typeHierarchy.isGenericType(node.RelativeDefId) {
+		return addGenericMethodToCHA(jsons, node, typeHierarchy)
+	} else {
+		id := fastenJSON.AddMethodToCHA(namespace, path)
+		fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
+		return []int64{id}
+	}
+}
 
-	return id
+func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) []int64 {
+	fastenJSON := jsons[node.CrateName]
+	fullPath, _ := typeHierarchy.getFullPath(node.RelativeDefId)
+	var ids []int64
+
+	paths := typeHierarchy.getGenericFullPaths(fullPath)
+	var namespaces []string
+	for _, path := range paths {
+		namespaces = append(namespaces, getNamespace(path))
+	}
+
+	for i := 0; i < len(paths) && i < len(namespaces); i++ {
+		id := fastenJSON.AddMethodToCHA(namespaces[i], paths[i])
+		ids = append(ids, id)
+	}
+	if len(namespaces) > 0 {
+		fastenJSON.AddInterfaceToCHA(namespaces[0], typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
+	}
+
+	return ids
 }
