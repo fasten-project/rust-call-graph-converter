@@ -82,9 +82,25 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 	fullPath += strings.Join(modules, ".")
 
 	if strings.Contains(impl, "[") {
-		impl = impl[1:len(impl)-1] + "[]"
+		patternBrackets := regexp.MustCompile("\\[(.*?)\\]")
+		index := patternBrackets.FindAllIndex([]byte(impl), -1)
+
+		for i := 0; i < len(index); i++ {
+			insideBrackets := impl[index[i][0]+1 : index[i][1]-1]
+			if strings.Contains(insideBrackets, "generic") {
+				patternColon := regexp.MustCompile(":")
+				indices := patternColon.FindAllIndex([]byte(insideBrackets), -1)
+				for _, genericIndex := range indices {
+					insideBrackets = insideBrackets[:genericIndex[0]] + "[]" + insideBrackets[genericIndex[0]:]
+				}
+			}
+			impl = impl[:index[i][0]] + insideBrackets + impl[index[i][1]:]
+		}
 	}
-	fullPath += "/" + url.PathEscape(impl)
+	impl = url.PathEscape(impl)
+	impl = strings.ReplaceAll(impl, ":", "%3A")
+	impl = strings.ReplaceAll(impl, "&", "%26")
+	fullPath += "/" + impl
 
 	for _, element := range nestedElements {
 		if element[:1] == "$" {
@@ -228,7 +244,6 @@ func (typeHierarchy MapTypeHierarchy) isGenericType(relativeDefId string) bool {
 
 func (typeHierarchy MapTypeHierarchy) getGenericFullPaths(fullPath string) []string {
 	var types []string
-	whitespacePattern := regexp.MustCompile("\\s")
 	implPattern := regexp.MustCompile("(/|\\$)%28.+?%29")
 	resolvedGenericTypes := implPattern.FindAllString(fullPath, -1)
 	resolvedGenericTypesIndices := implPattern.FindAllIndex([]byte(fullPath), -1)
@@ -241,10 +256,17 @@ func (typeHierarchy MapTypeHierarchy) getGenericFullPaths(fullPath string) []str
 	alreadyResolvedPath := fullPath[index[1]:]
 	symbol := resolvedGenericTypes[len(resolvedGenericTypes)-1][:1]
 	resolved, _ := url.PathUnescape(resolvedGenericTypes[len(resolvedGenericTypes)-1][1:])
-	resolved = whitespacePattern.ReplaceAllString(resolved, "")
-	genericTypes := strings.Split(resolved[1:len(resolved)-2], ",")
+	resolved = strings.ReplaceAll(resolved, "%3A", ":")
+	resolved = strings.ReplaceAll(resolved, "%26", "&")
+	genericTypes := strings.Split(resolved[1:len(resolved)-3], ",")
+
 	for _, genericType := range genericTypes {
-		genericPath := fullPath[:index[0]] + symbol + genericType
+		genericType = strings.TrimSpace(genericType)
+		genericPath := fullPath[:index[0]] + symbol + url.PathEscape(genericType)
+		// Manual encoding, because : and & and not ignored by url.PathEncode
+		genericPath = strings.ReplaceAll(genericPath, ":", "%3A")
+		genericPath = strings.ReplaceAll(genericPath, "&", "%26")
+
 		resolvedGenericPath := typeHierarchy.getGenericFullPaths(genericPath)
 		for _, path := range resolvedGenericPath {
 			types = append(types, path+alreadyResolvedPath)
