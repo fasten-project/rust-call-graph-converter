@@ -19,7 +19,7 @@ import (
 var broker = flag.String("b", "localhost:9092", "broker address in format host:port")
 var produceKafkaTopic = flag.String("o", "default.produce.topic", "kafka topic to send to")
 var inputDirectory = flag.String("i", ".", "directory containing rust call graphs")
-var threads = flag.Int("threads", 1, "number of threads goroutines")
+var threads = flag.Int("threads", 1, "number of threads")
 
 var brokers []string
 var topic goka.Stream
@@ -40,7 +40,7 @@ func main() {
 
 	callgraphs := getCallGraphs()
 
-	// Read type hierarchy of a standard library
+	// Read type hierarchy of a standard library.
 	var rawStdTypeHierarchy rust.TypeHierarchy
 	stdTypeHierarchyFile, _ := ioutil.ReadFile("src/internal/rust/standardlibrary/type_hierarchy.json")
 	_ = json.Unmarshal(stdTypeHierarchyFile, &rawStdTypeHierarchy)
@@ -83,7 +83,7 @@ func main() {
 }
 
 // Walk the current directory and return a map containing a /packageName/packageVersion/
-// as a key and an array of containing callgraph.json and type_hierarchy.json paths
+// as a key and an array of containing callgraph.json and type_hierarchy.json paths.
 func getCallGraphs() map[string][]string {
 	callgraphs := make(map[string][]string)
 	cgs, _ := ioutil.ReadDir(*inputDirectory)
@@ -105,7 +105,7 @@ func getCallGraphs() map[string][]string {
 }
 
 // Given an array containing paths to callgraph.json and type_hierarchy.json return
-// content of those files in order (Callgraph, TypeHierarchy)
+// content of those files in order (Callgraph, TypeHierarchy).
 func getFiles(files []string) ([]byte, []byte) {
 	var cgFile []byte
 	var typeHierarchyFile []byte
@@ -121,7 +121,7 @@ func getFiles(files []string) ([]byte, []byte) {
 	return cgFile, typeHierarchyFile
 }
 
-// Writes an array of given fasten call graphs to "specified_at_startup_directory"/fasten/pkg
+// Writes an array of given fasten call graphs to "specified_at_startup_directory"/fasten/pkg.
 func writeCallGraphs(fastenCallGraphs []fasten.JSON) error {
 	var err error
 	for _, fastenCallGraph := range fastenCallGraphs {
@@ -134,6 +134,7 @@ func writeCallGraphs(fastenCallGraphs []fasten.JSON) error {
 	return err
 }
 
+// Sends message to Kafka topic.
 func runEmitter(msg []byte) error {
 	err := emitter.EmitSync("placeholder", string(msg))
 	if err != nil {

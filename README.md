@@ -16,7 +16,7 @@ Accepts the following command line arguments:
 
 ## Input 
 
-RustCallGraphConverter accepts two JSON file as it input - `callgraph.json` & `type_hierarchy.json`
+RustCallGraphConverter accepts two JSON file as its input - `callgraph.json` & `type_hierarchy.json`
 ```json
 {
   "functions": [
@@ -50,8 +50,7 @@ RustCallGraphConverter accepts two JSON file as it input - `callgraph.json` & `t
   ],
   "function_calls": [
     [ 0, 1, true ],
-    [ 0, 1, false ],
-    [ 0, 2, true ],
+    [ 0, 2, false ],
     [ 2, 0, true ]
   ]
 }

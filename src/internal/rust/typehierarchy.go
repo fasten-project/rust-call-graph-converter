@@ -45,7 +45,7 @@ type MapTypeHierarchy struct {
 	Impls  map[string]Impl
 }
 
-// Convert data of type hierarchy read from json to a map for simplifying queries
+// Convert data of type hierarchy read from json to a map for simplifying queries.
 func (typeHierarchy TypeHierarchy) ConvertToMap() MapTypeHierarchy {
 	mapTypeHierarchy := MapTypeHierarchy{
 		Types:  make(map[int64]Type),
@@ -73,7 +73,7 @@ func (typeHierarchy TypeHierarchy) ConvertToMap() MapTypeHierarchy {
 	return mapTypeHierarchy
 }
 
-// Converts a relativeDefPath to the path in Fasten format.
+// Converts a relativeDefId to the path in Fasten format.
 func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string, error) {
 	var err error
 	modules, impl, nestedElements, method, err := typeHierarchy.parseRelativeDefPath(relativeDefId)
@@ -114,8 +114,8 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 	return fullPath, err
 }
 
-// Parses relative_def_path and returns a tuple containing slice of modules,
-// resolved type name, nested functions and types, function name
+// Parses relativeDefId and returns a tuple containing slice of modules,
+// resolved type name, nested functions and types, function name.
 func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) ([]string, string, []string, string, error) {
 	patternClosure := regexp.MustCompile("::{{closure}}\\[[0-9]*]")
 	patternConstant := regexp.MustCompile("::{{constant}}\\[[0-9]*]")
@@ -173,7 +173,7 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 }
 
 // When {{impl}}[id] is present in the relativeDefPath finds the respective implementation
-// in the list of Impls inside the type hierarchy. Returns the respective Type and Trait
+// in the list of Impls inside the type hierarchy. Returns the respective Type and Trait.
 func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId string) (string, error) {
 	pattern := regexp.MustCompile("^.*{{impl}}\\[[0-9]*]")
 	fourCharIdPattern := regexp.MustCompile("\\[.{4}]")
@@ -188,7 +188,7 @@ func (typeHierarchy MapTypeHierarchy) getTypeFromTypeHierarchy(relativeDefId str
 }
 
 // When {{impl}}[id] is present in the relativeDefPath finds the respective implementation
-// in the list of Impls inside the type hierarchy. Returns the respective Type and Trait
+// in the list of Impls inside the type hierarchy. Returns the respective Type and Trait.
 func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId string) string {
 	pattern := regexp.MustCompile("^.*{{impl}}\\[[0-9]*]")
 	fourCharIdPattern := regexp.MustCompile("\\[.{4}]")
@@ -203,13 +203,14 @@ func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId st
 	return ""
 }
 
-// Extract the namespace from the full type info by removing the the function name
-// at the end
+// Extract the namespace from the full type info by removing the function name
+// at the end.
 func getNamespace(method string) string {
 	index := strings.LastIndex(method, ".")
 	return method[:index]
 }
 
+// Convert relativeDefId of a Trait to Fasten format.
 func getTraitPath(relativeDefId string) string {
 	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
 	relativeDefId = squareBracketsPattern.ReplaceAllString(relativeDefId, "")
@@ -226,6 +227,7 @@ func getTraitPath(relativeDefId string) string {
 	return path
 }
 
+// Check if the given RelativeDefId contains generic types.
 func (typeHierarchy MapTypeHierarchy) isGenericType(relativeDefId string) bool {
 	rawElements := strings.Split(relativeDefId, "::")
 	length := 0
@@ -242,6 +244,8 @@ func (typeHierarchy MapTypeHierarchy) isGenericType(relativeDefId string) bool {
 	return false
 }
 
+// Converts a path containing generic types to a slice of
+// paths each containing one generic type.
 func (typeHierarchy MapTypeHierarchy) getGenericFullPaths(fullPath string) []string {
 	var types []string
 	implPattern := regexp.MustCompile("(/|\\$)%28.+?%29")

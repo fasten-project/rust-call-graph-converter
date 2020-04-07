@@ -21,7 +21,7 @@ type Node struct {
 	NumberOfLines     int64  `json:"num_lines"`
 }
 
-//Converts rustJSON to FastenJSON
+//Converts rustJSON to FastenJSON.
 func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy) ([]fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
@@ -59,55 +59,54 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 	return result, nil
 }
 
-// Add a call to graph of a source package
+// Add a call to graph of a source package.
 func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[int64]string,
 	edge []interface{}, typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, edgeMap map[int64][]int64) {
-	if edge[2] == true {
-		sourceIndex := int64(edge[0].(float64))
-		targetIndex := int64(edge[1].(float64))
-		sourcePkg := methods[sourceIndex]
-		targetPkg := methods[targetIndex]
-		source := jsons[sourcePkg]
-		target := jsons[targetPkg]
+	sourceIndex := int64(edge[0].(float64))
+	targetIndex := int64(edge[1].(float64))
+	sourcePkg := methods[sourceIndex]
+	targetPkg := methods[targetIndex]
+	source := jsons[sourcePkg]
+	target := jsons[targetPkg]
 
-		if targetPkg != sourcePkg {
-			source.AddDependency(target)
+	if targetPkg != sourcePkg {
+		source.AddDependency(target)
 
-			for _, sourceMethod := range edgeMap[sourceIndex] {
-				for _, targetMethod := range rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex) {
-					source.AddExternalCall(sourceMethod, "//"+target.Product+targetMethod)
-				}
+		for _, sourceMethod := range edgeMap[sourceIndex] {
+			for _, targetMethod := range rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex) {
+				source.AddExternalCall(sourceMethod, "//"+target.Product+targetMethod)
 			}
-		} else {
-			for _, sourceMethod := range edgeMap[sourceIndex] {
-				for _, targetMethod := range edgeMap[targetIndex] {
-					source.AddInternalCall(sourceMethod, targetMethod)
-				}
-			}
-
 		}
+	} else {
+		for _, sourceMethod := range edgeMap[sourceIndex] {
+			for _, targetMethod := range edgeMap[targetIndex] {
+				source.AddInternalCall(sourceMethod, targetMethod)
+			}
+		}
+
 	}
 }
 
-// In case target does not belong to the source package, resolves the
-// full target method from a class hierarchy of a target package.
+// Resolves the full target method path from a type hierarchy of the target package
+// or from the type hierarchy of the standard library.
 func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, stdTypeHierarchy MapTypeHierarchy, targetIndex int64) []string {
 	if path, err := typeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
 		if typeHierarchy.isGenericType(rustJSON.Functions[targetIndex].RelativeDefId) {
 			return typeHierarchy.getGenericFullPaths(path)
 		}
-		return []string {path}
+		return []string{path}
 	}
 	if path, err := stdTypeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
 		if typeHierarchy.isGenericType(rustJSON.Functions[targetIndex].RelativeDefId) {
 			return typeHierarchy.getGenericFullPaths(path)
 		}
-		return []string {path}
+		return []string{path}
 	}
 	return []string{"UNKNOWN"}
 }
 
-// Add method to Class Hierarchy.
+// Add method to Class Hierarchy or passes control to addGenericMethodToCHA
+// in case the method is has generic types.
 func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) []int64 {
 	fastenJSON := jsons[node.CrateName]
 	path, _ := typeHierarchy.getFullPath(node.RelativeDefId)
@@ -122,6 +121,8 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapT
 	}
 }
 
+// Processes a method with generic types and adds each generic type
+// to CHA separately.
 func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) []int64 {
 	fastenJSON := jsons[node.CrateName]
 	fullPath, _ := typeHierarchy.getFullPath(node.RelativeDefId)
