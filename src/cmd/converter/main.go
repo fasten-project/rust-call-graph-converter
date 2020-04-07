@@ -91,7 +91,7 @@ func getCallGraphs() map[string][]string {
 	for _, cg := range cgs {
 		if !strings.HasPrefix(cg.Name(), ".") {
 			_ = filepath.Walk(*inputDirectory+"/"+cg.Name(), func(path string, f os.FileInfo, err error) error {
-				if f.Mode().IsRegular() && !strings.HasPrefix(f.Name(), ".") {
+				if f.Mode().IsRegular() && !strings.HasPrefix(f.Name(), ".") && strings.Contains(f.Name(), ".json") {
 					packageName := strings.TrimPrefix(path, *inputDirectory)
 					filename := strings.Split(packageName, string(filepath.Separator))
 					packageName = strings.TrimSuffix(packageName, filename[len(filename)-1])
