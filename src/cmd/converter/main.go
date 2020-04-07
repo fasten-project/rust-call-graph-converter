@@ -5,6 +5,8 @@ import (
 	"RustCallGraphConverter/src/internal/rust"
 	"encoding/json"
 	"flag"
+	"github.com/lovoo/goka"
+	"github.com/lovoo/goka/codec"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,12 +16,28 @@ import (
 	"time"
 )
 
+var broker = flag.String("b", "localhost:9092", "broker address in format host:port")
+var produceKafkaTopic = flag.String("o", "default.produce.topic", "kafka topic to send to")
 var inputDirectory = flag.String("i", ".", "directory containing rust call graphs")
-var outputDirectory = flag.String("o", ".", "output directory for fasten call graphs")
-var parallel = flag.Int("p", 1, "number of parallel goroutines")
+var threads = flag.Int("threads", 1, "number of threads goroutines")
+
+var brokers []string
+var topic goka.Stream
+var emitter *goka.Emitter
 
 func main() {
 	flag.Parse()
+
+	brokers = append(brokers, *broker)
+	topic = goka.Stream(*produceKafkaTopic)
+
+	var err error
+	emitter, err = goka.NewEmitter(brokers, topic, new(codec.String))
+	if err != nil {
+		log.Fatalf("error creating emitter: %v", err)
+	}
+	defer emitter.Finish()
+
 	callgraphs := getCallGraphs()
 
 	// Read type hierarchy of a standard library
@@ -28,7 +46,7 @@ func main() {
 	_ = json.Unmarshal(stdTypeHierarchyFile, &rawStdTypeHierarchy)
 	stdTypeHierarchy := rawStdTypeHierarchy.ConvertToMap()
 
-	guard := make(chan struct{}, *parallel)
+	guard := make(chan struct{}, *threads)
 
 	var wg sync.WaitGroup
 	wg.Add(len(callgraphs))
@@ -49,7 +67,7 @@ func main() {
 			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
 			end := time.Since(start).Seconds()
 
-			err = writeCallGraphs(fastenCallGraphs, pkg)
+			err = writeCallGraphs(fastenCallGraphs)
 
 			if err == nil {
 				log.Printf("Succesfully converted: %s in %f sec", pkg, end)
@@ -104,19 +122,22 @@ func getFiles(files []string) ([]byte, []byte) {
 }
 
 // Writes an array of given fasten call graphs to "specified_at_startup_directory"/fasten/pkg
-func writeCallGraphs(fastenCallGraphs []fasten.JSON, pkg string) error {
-	path := *outputDirectory + "/fasten" + pkg
-	err := os.MkdirAll(path, 0755)
-
+func writeCallGraphs(fastenCallGraphs []fasten.JSON) error {
+	var err error
 	for _, fastenCallGraph := range fastenCallGraphs {
 		if !fastenCallGraph.IsEmpty() {
 			fastenJson, _ := json.Marshal(fastenCallGraph)
-			f, err := os.Create(path + fastenCallGraph.Product + ".json")
-			if err == nil {
-				_, err = f.Write(fastenJson)
-				err = f.Close()
-			}
+			_ = fastenJson
+			err = runEmitter(fastenJson)
 		}
+	}
+	return err
+}
+
+func runEmitter(msg []byte) error {
+	err := emitter.EmitSync("placeholder", string(msg))
+	if err != nil {
+		log.Fatalf("error emitting message: %v", err)
 	}
 	return err
 }
