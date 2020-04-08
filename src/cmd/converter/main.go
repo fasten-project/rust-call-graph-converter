@@ -17,8 +17,9 @@ import (
 )
 
 var broker = flag.String("b", "localhost:9092", "broker address in format host:port")
-var produceKafkaTopic = flag.String("o", "default.produce.topic", "kafka topic to send to")
+var produceKafkaTopic = flag.String("t", "[no-value-provided]", "kafka topic to send to")
 var inputDirectory = flag.String("i", ".", "directory containing rust call graphs")
+var outputDirectory = flag.String("o", "[no-value-provided]", "directory to write converted call graphs to")
 var threads = flag.Int("threads", 1, "number of threads")
 
 var brokers []string
@@ -67,7 +68,7 @@ func main() {
 			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
 			end := time.Since(start).Seconds()
 
-			err = writeCallGraphs(fastenCallGraphs)
+			err = writeCallGraphs(fastenCallGraphs, pkg)
 
 			if err == nil {
 				log.Printf("Succesfully converted: %s in %f sec", pkg, end)
@@ -122,13 +123,27 @@ func getFiles(files []string) ([]byte, []byte) {
 }
 
 // Writes an array of given fasten call graphs to "specified_at_startup_directory"/fasten/pkg.
-func writeCallGraphs(fastenCallGraphs []fasten.JSON) error {
+func writeCallGraphs(fastenCallGraphs []fasten.JSON, pkg string) error {
 	var err error
+	var path string
+	if *outputDirectory != "[no-value-provided]" {
+		path = *outputDirectory + "/fasten" + pkg
+		err = os.MkdirAll(path, 0755)
+	}
 	for _, fastenCallGraph := range fastenCallGraphs {
 		if !fastenCallGraph.IsEmpty() {
 			fastenJson, _ := json.Marshal(fastenCallGraph)
 			_ = fastenJson
-			err = runEmitter(fastenJson)
+			if *produceKafkaTopic != "[no-value-provided]" {
+				err = runEmitter(fastenJson)
+			}
+			if *outputDirectory != "[no-value-provided]" {
+				f, err := os.Create(path + fastenCallGraph.Product + ".json")
+				if err == nil {
+					_, err = f.Write(fastenJson)
+					err = f.Close()
+				}
+			}
 		}
 	}
 	return err

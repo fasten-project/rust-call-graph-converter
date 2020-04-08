@@ -11,7 +11,8 @@ To run RustCallGraphConverter you should have Golang (version 1.14)
 Accepts the following command line arguments: 
    * **-b**: Kafka broker in format host:port; default: localhost:9092
    * **-i**: Directory containing rust call graphs; default: .
-   * **-o**: Kafka topic to produce to; default: default.produce.topic
+   * **-t**: Kafka topic to produce to; default: \[no-value-provided]
+   * **-o**: Directory to write converted call graphs to; default: \[no-value-provided]
    * **--threads**: Number of threads; default: 1
 
 ## Input 
@@ -208,7 +209,7 @@ Code fragment 4. Fasten Call graph for package `other_crate`
 git clone https://github.com/fasten-project/rust-call-graph-converter.git
 cd rust-call-graph-converter
 go build -o main ./src/cmd/converter/main.go
-./main -b localhost:9092 -o produce.topic.name -i /directory/with/rust/callgraphs --threads 5
+./main -b localhost:9092 -t produce.topic.name -i /directory/with/rust/callgraphs --threads 5
 ```
 
 ## Docker
@@ -217,5 +218,5 @@ go build -o main ./src/cmd/converter/main.go
 git clone https://github.com/fasten-project/rust-call-graph-converter.git
 cd rust-call-graph-converter
 docker build -t rust-converter .
-docker run -it -v /directory/with/rust/callgraphs/:/data rust-converter -i /data -o host.docker.internal:9092 --threads 5
+docker run -it -v /directory/with/rust/callgraphs/:/data rust-converter -i /data -b host.docker.internal:9092 -t produce.topic.name --threads 5
 ```
