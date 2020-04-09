@@ -65,15 +65,15 @@ func main() {
 			err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
 			start := time.Now()
-			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
+			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy, pkg)
 			end := time.Since(start).Seconds()
 
 			if *produceKafkaTopic != "[no-value-provided]" {
-				err = writeToKafka(fastenCallGraphs[pkg], pkg)
+				err = writeToKafka(fastenCallGraphs, pkg)
 			}
 
 			if *outputDirectory != "[no-value-provided]" {
-				err = writeToDisk(fastenCallGraphs[pkg], pkg)
+				err = writeToDisk(fastenCallGraphs, pkg)
 			}
 
 			if err == nil {

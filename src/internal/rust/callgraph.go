@@ -2,6 +2,11 @@ package rust
 
 import (
 	"RustCallGraphConverter/src/internal/fasten"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"time"
 )
 
 // CallGraph
@@ -21,8 +26,16 @@ type Node struct {
 	NumberOfLines     int64  `json:"num_lines"`
 }
 
+type CratesioAPI struct {
+	Version CratesioVersion `json:"version"`
+}
+
+type CratesioVersion struct {
+	CreatedAt string `json:"created_at"`
+}
+
 //Converts rustJSON to FastenJSON.
-func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy) (map[string]fasten.JSON, error) {
+func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy, pkg string) (fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 	var edgeMap = make(map[int64][]int64)
@@ -51,15 +64,14 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy, stdTypeHierarchy, edgeMap)
 	}
 
-	var result = make(map[string]fasten.JSON)
-	for _, value := range jsons {
-		if value != nil {
-			pkg := "/" + value.Product + "/" + value.Version + "/"
-			result[pkg] = *value
-		}
+	pkgCrate := strings.Split(pkg, "/")[1]
+	result := jsons[pkgCrate]
+	if result != nil {
+		resolveTimestamp(result)
+		return *result, nil
 	}
 
-	return result, nil
+	return fasten.JSON{}, nil
 }
 
 // Add a call to graph of a source package.
@@ -145,4 +157,21 @@ func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarc
 	}
 
 	return ids
+}
+
+// Resolve a timestamp for the given fastenJson
+func resolveTimestamp(fastenJSON *fasten.JSON) {
+	uri := "https://crates.io/api/v1/crates/" + fastenJSON.Product + "/" + fastenJSON.Version
+	resp, _ := http.Get(uri)
+	respBody, _ := ioutil.ReadAll(resp.Body)
+	var api CratesioAPI
+	_ = json.Unmarshal(respBody, &api)
+	_ = resp.Body.Close()
+
+	layout := "2006-01-02T15:04:05.999999999Z07:00"
+	date := api.Version.CreatedAt
+	if date != "" {
+		timestamp, _ := time.Parse(layout, date)
+		fastenJSON.Timestamp = timestamp.Unix()
+	}
 }
