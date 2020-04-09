@@ -22,7 +22,7 @@ type Node struct {
 }
 
 //Converts rustJSON to FastenJSON.
-func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy) ([]fasten.JSON, error) {
+func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy) (map[string]fasten.JSON, error) {
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 	var edgeMap = make(map[int64][]int64)
@@ -51,9 +51,12 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 		rustJSON.addCallToGraph(jsons, methods, edge, typeHierarchy, stdTypeHierarchy, edgeMap)
 	}
 
-	var result []fasten.JSON
+	var result = make(map[string]fasten.JSON)
 	for _, value := range jsons {
-		result = append(result, *value)
+		if value != nil {
+			pkg := "/" + value.Product + "/" + value.Version + "/"
+			result[pkg] = *value
+		}
 	}
 
 	return result, nil
@@ -83,7 +86,6 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 				source.AddInternalCall(sourceMethod, targetMethod)
 			}
 		}
-
 	}
 }
 
@@ -138,8 +140,8 @@ func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarc
 		id := fastenJSON.AddMethodToCHA(namespaces[i], paths[i])
 		ids = append(ids, id)
 	}
-	if len(namespaces) > 0 {
-		fastenJSON.AddInterfaceToCHA(namespaces[0], typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
+	for _, namespace := range namespaces {
+		fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
 	}
 
 	return ids

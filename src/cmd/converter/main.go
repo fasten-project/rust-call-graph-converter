@@ -68,7 +68,13 @@ func main() {
 			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy)
 			end := time.Since(start).Seconds()
 
-			err = writeCallGraphs(fastenCallGraphs, pkg)
+			if *produceKafkaTopic != "[no-value-provided]" {
+				err = writeToKafka(fastenCallGraphs[pkg], pkg)
+			}
+
+			if *outputDirectory != "[no-value-provided]" {
+				err = writeToDisk(fastenCallGraphs[pkg], pkg)
+			}
 
 			if err == nil {
 				log.Printf("Succesfully converted: %s in %f sec", pkg, end)
@@ -122,36 +128,35 @@ func getFiles(files []string) ([]byte, []byte) {
 	return cgFile, typeHierarchyFile
 }
 
-// Writes an array of given fasten call graphs to "specified_at_startup_directory"/fasten/pkg.
-func writeCallGraphs(fastenCallGraphs []fasten.JSON, pkg string) error {
+// Writes the fastenJSON to specified Kafka topic.
+func writeToKafka(fastenCallGraph fasten.JSON, pkg string) error {
 	var err error
-	var path string
-	if *outputDirectory != "[no-value-provided]" {
-		path = *outputDirectory + "/fasten" + pkg
-		err = os.MkdirAll(path, 0755)
+	if !fastenCallGraph.IsEmpty() {
+		fastenJson, _ := json.Marshal(fastenCallGraph)
+		err = runEmitter(fastenJson, pkg)
 	}
-	for _, fastenCallGraph := range fastenCallGraphs {
-		if !fastenCallGraph.IsEmpty() {
-			fastenJson, _ := json.Marshal(fastenCallGraph)
-			_ = fastenJson
-			if *produceKafkaTopic != "[no-value-provided]" {
-				err = runEmitter(fastenJson)
-			}
-			if *outputDirectory != "[no-value-provided]" {
-				f, err := os.Create(path + fastenCallGraph.Product + ".json")
-				if err == nil {
-					_, err = f.Write(fastenJson)
-					err = f.Close()
-				}
-			}
+	return err
+}
+
+// Writes the fastenJSON to "specified_output_directory"/fasten/pkg.
+func writeToDisk(fastenCallGraph fasten.JSON, pkg string) error {
+	var err error
+	if !fastenCallGraph.IsEmpty() {
+		path := *outputDirectory + "/fasten" + pkg
+		err = os.MkdirAll(path, 0755)
+		fastenJson, _ := json.Marshal(fastenCallGraph)
+		f, err := os.Create(path + fastenCallGraph.Product + "-" + fastenCallGraph.Version + ".json")
+		if err == nil {
+			_, err = f.Write(fastenJson)
+			err = f.Close()
 		}
 	}
 	return err
 }
 
 // Sends message to Kafka topic.
-func runEmitter(msg []byte) error {
-	err := emitter.EmitSync("placeholder", string(msg))
+func runEmitter(msg []byte, header string) error {
+	err := emitter.EmitSync(header, string(msg))
 	if err != nil {
 		log.Fatalf("error emitting message: %v", err)
 	}

@@ -5,14 +5,14 @@ import (
 )
 
 type JSON struct {
-	Product   string          `json:"product,omitempty"`
-	Forge     string          `json:"forge,omitempty"`
-	Generator string          `json:"generator,omitempty"`
-	Depset    [][]Dependency  `json:"depset,omitempty"`
-	Version   string          `json:"version,omitempty"`
-	Cha       map[string]Type `json:"cha,omitempty"`
-	Graph     CallGraph       `json:"graph,omitempty"`
-	Timestamp int64           `json:"timestamp,omitempty"`
+	Product   string          `json:"product"`
+	Forge     string          `json:"forge"`
+	Generator string          `json:"generator"`
+	Depset    [][]Dependency  `json:"depset"`
+	Version   string          `json:"version"`
+	Cha       map[string]Type `json:"cha"`
+	Graph     CallGraph       `json:"graph"`
+	Timestamp int64           `json:"timestamp"`
 
 	Counter int64 `json:"-"`
 }
@@ -95,6 +95,11 @@ func (fastenJSON *JSON) AddInterfaceToCHA(namespace string, interfaceName string
 	fastenJSON.initializeCHANamespace(namespace)
 
 	typeValue := fastenJSON.Cha[namespace]
+	for _, trait := range typeValue.SuperInterfaces {
+		if trait == interfaceName {
+			return
+		}
+	}
 	typeValue.SuperInterfaces = append(typeValue.SuperInterfaces, interfaceName)
 	fastenJSON.Cha[namespace] = typeValue
 }
