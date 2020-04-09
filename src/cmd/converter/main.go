@@ -33,11 +33,13 @@ func main() {
 	topic = goka.Stream(*produceKafkaTopic)
 
 	var err error
-	emitter, err = goka.NewEmitter(brokers, topic, new(codec.String))
-	if err != nil {
-		log.Fatalf("error creating emitter: %v", err)
+	if *produceKafkaTopic != "[no-value-provided]" {
+		emitter, err = goka.NewEmitter(brokers, topic, new(codec.String))
+		if err != nil {
+			log.Fatalf("error creating emitter: %v", err)
+		}
+		defer emitter.Finish()
 	}
-	defer emitter.Finish()
 
 	callgraphs := getCallGraphs()
 
