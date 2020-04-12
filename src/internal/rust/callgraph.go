@@ -24,6 +24,7 @@ type Node struct {
 	RelativeDefId     string `json:"relative_def_id"`
 	ExternallyVisible bool   `json:"is_externally_visible"`
 	NumberOfLines     int64  `json:"num_lines"`
+	SourceLocation    string `json:"source_location"`
 }
 
 type CratesioAPI struct {
@@ -65,6 +66,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 	}
 
 	pkgCrate := strings.Split(pkg, "/")[1]
+	pkgCrate = strings.ReplaceAll(pkgCrate, "-", "_")
 	result := jsons[pkgCrate]
 	if result != nil {
 		resolveTimestamp(result)
@@ -131,6 +133,7 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapT
 	} else {
 		id := fastenJSON.AddMethodToCHA(namespace, path)
 		fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
+		fastenJSON.AddFilenameToCHA(namespace, getFileName(node.SourceLocation, node.CrateName + "-" + node.PackageVersion))
 		return []int64{id}
 	}
 }
@@ -157,6 +160,24 @@ func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarc
 	}
 
 	return ids
+}
+
+// Format file information from rust call graph.
+func getFileName(rawFileName string, productVersion string) string {
+	if rawFileName == "" {
+		return rawFileName
+	}
+	elements := strings.Split(rawFileName, productVersion)
+	if len(elements) > 1 {
+		rawFileName = elements[1]
+	}
+	
+	rawFileName = strings.Split(rawFileName, ":")[0]
+	if strings.Contains(rawFileName, ".rs") {
+		return rawFileName
+	} else {
+		return ""
+	}
 }
 
 // Resolve a timestamp for the given fastenJson

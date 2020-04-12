@@ -104,6 +104,19 @@ func (fastenJSON *JSON) AddInterfaceToCHA(namespace string, interfaceName string
 	fastenJSON.Cha[namespace] = typeValue
 }
 
+// Add filename to Class Hierarchy.
+func (fastenJSON *JSON) AddFilenameToCHA(namespace string, filename string) {
+	if filename == "" {
+		return
+	}
+
+	fastenJSON.initializeCHANamespace(namespace)
+
+	typeValue := fastenJSON.Cha[namespace]
+	typeValue.SourceFile = filename
+	fastenJSON.Cha[namespace] = typeValue
+}
+
 // Create a new instance in the class hierarchy map of ra give namespace if not yet present
 func (fastenJSON *JSON) initializeCHANamespace(namespace string) {
 	if _, exists := fastenJSON.Cha[namespace]; !exists {
