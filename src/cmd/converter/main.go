@@ -159,8 +159,5 @@ func writeToDisk(fastenCallGraph fasten.JSON, pkg string) error {
 // Sends message to Kafka topic.
 func runEmitter(msg []byte, header string) error {
 	err := emitter.EmitSync(header, string(msg))
-	if err != nil {
-		log.Fatalf("error emitting message: %v", err)
-	}
 	return err
 }
