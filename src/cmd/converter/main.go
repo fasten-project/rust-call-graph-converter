@@ -66,7 +66,6 @@ func main() {
 			err := json.Unmarshal(cgFile, &callGraph)
 			err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
-			log.Printf("Converting: %s", pkg)
 			start := time.Now()
 			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy, pkg)
 			end := time.Since(start).Seconds()

@@ -86,9 +86,6 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 		index := patternBrackets.FindAllIndex([]byte(impl), -1)
 
 		for i := 0; i < len(index); i++ {
-			if len(impl) >= index[i][1]-1 {
-				return "", errors.New("path index out of bounds")
-			}
 			insideBrackets := impl[index[i][0]+1 : index[i][1]-1]
 			if strings.Contains(insideBrackets, "generic") {
 				patternColon := regexp.MustCompile(":")
