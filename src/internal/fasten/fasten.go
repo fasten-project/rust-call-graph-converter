@@ -2,6 +2,7 @@ package fasten
 
 import (
 	"encoding/json"
+	"strconv"
 )
 
 type JSON struct {
@@ -24,15 +25,15 @@ type Dependency struct {
 }
 
 type Type struct {
-	Methods         map[int64]string `json:"methods,omitempty"`
-	SuperInterfaces []string         `json:"superInterfaces,omitempty"`
-	SourceFile      string           `json:"sourceFile,omitempty"`
-	SuperClasses    []string         `json:"superClasses,omitempty"`
+	Methods         map[int64]string `json:"methods"`
+	SuperInterfaces []string         `json:"superInterfaces"`
+	SourceFile      string           `json:"sourceFile"`
+	SuperClasses    []string         `json:"superClasses,nilasempty"`
 }
 
 type CallGraph struct {
-	InternalCalls [][]int64       `json:"internalCalls,omitempty"`
-	ExternalCalls [][]interface{} `json:"externalCalls,omitempty"`
+	InternalCalls [][]int64       `json:"internalCalls"`
+	ExternalCalls [][]interface{} `json:"externalCalls"`
 }
 
 // Converts this fastenJSON type to JSON format
@@ -78,16 +79,10 @@ func (fastenJSON *JSON) AddDependency(target *JSON) {
 	if len(fastenJSON.Depset) == 0 {
 		fastenJSON.Depset = append(fastenJSON.Depset, []Dependency{})
 	}
-	version := make([]string, 0)
-	if target.Version != "" {
-		version = append(version, target.Version)
-	} else {
-		version = append(version, "0.0.0")
-	}
 	fastenJSON.Depset[0] = append(fastenJSON.Depset[0], Dependency{
 		Product:     target.Product,
 		Forge:       "cratesio",
-		Constraints: version,
+		Constraints: []string{"[" + target.Version + "]"},
 	})
 }
 
@@ -143,7 +138,7 @@ func (fastenJSON *JSON) initializeCHANamespace(namespace string) {
 			Methods:         map[int64]string{},
 			SuperInterfaces: []string{},
 			SourceFile:      "",
-			SuperClasses:    []string{},
+			SuperClasses:    make([]string, 0),
 		}
 	}
 }
@@ -155,5 +150,5 @@ func (fastenJSON *JSON) AddInternalCall(sourceId int64, targetId int64) {
 
 // Add external call to the Graph.
 func (fastenJSON *JSON) AddExternalCall(sourceId int64, target string) {
-	fastenJSON.Graph.ExternalCalls = append(fastenJSON.Graph.ExternalCalls, []interface{}{sourceId, target})
+	fastenJSON.Graph.ExternalCalls = append(fastenJSON.Graph.ExternalCalls, []interface{}{strconv.FormatInt(sourceId, 10), target, map[string]string{}})
 }

@@ -178,7 +178,10 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 	if !gotFirstImpl {
 		impl = "NO-TYPE-DEFINITION"
 	}
-	return modules, impl, nestedElements, function, err
+	if len(modules) == 0 {
+		modules = append(modules, "EMPTY-NAMESPACE")
+	}
+ 	return modules, impl, nestedElements, function, err
 }
 
 // When {{impl}}[id] is present in the relativeDefPath finds the respective implementation

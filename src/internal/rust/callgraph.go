@@ -45,12 +45,18 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 
 	for _, node := range append(rustJSON.Functions, rustJSON.Macros...) {
 		if _, ok := jsons[node.CrateName]; !ok {
+			var version string
+			if node.PackageVersion == "" {
+				version = "0.0.0"
+			} else {
+				version = node.PackageVersion
+			}
 			jsons[node.CrateName] = &fasten.JSON{
 				Product:   node.CrateName,
 				Forge:     "cratesio",
 				Generator: "rust-callgraphs",
 				Depset:    [][]fasten.Dependency{},
-				Version:   node.PackageVersion,
+				Version:   version,
 				Cha:       map[string]fasten.Type{},
 				Graph:     fasten.CallGraph{},
 				Timestamp: -1,
@@ -91,7 +97,7 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 
 		for _, sourceMethod := range edgeMap[sourceIndex] {
 			for _, targetMethod := range rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex) {
-				source.AddExternalCall(sourceMethod, "//"+target.Product+targetMethod)
+				source.AddExternalCall(sourceMethod, "//"+target.Forge+"!"+target.Product+"$"+target.Version+targetMethod)
 			}
 		}
 	} else {
@@ -133,7 +139,7 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapT
 	} else {
 		id := fastenJSON.AddMethodToCHA(namespace, path)
 		fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
-		fastenJSON.AddFilenameToCHA(namespace, getFileName(node.SourceLocation, node.CrateName + "-" + node.PackageVersion))
+		fastenJSON.AddFilenameToCHA(namespace, getFileName(node.SourceLocation, node.CrateName+"-"+node.PackageVersion))
 		return []int64{id}
 	}
 }
@@ -171,7 +177,7 @@ func getFileName(rawFileName string, productVersion string) string {
 	if len(elements) > 1 {
 		rawFileName = elements[1]
 	}
-	
+
 	rawFileName = strings.Split(rawFileName, ":")[0]
 	if strings.Contains(rawFileName, ".rs") {
 		return rawFileName
