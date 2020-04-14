@@ -62,11 +62,14 @@ func main() {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Failed to convert: %s, ERROR: %s", pkg, r.(error))
+					<-guard
+					wg.Done()
 				} else {
 					log.Printf("Succesfully converted: %s in %f sec", pkg, finalTime)
+					<-guard
+					wg.Done()
 				}
 			}()
-			defer wg.Done()
 
 			cgFile, typeHierarchyFile := getFiles(files)
 
@@ -86,7 +89,7 @@ func main() {
 			if *outputDirectory != "[no-value-provided]" {
 				err = writeToDisk(fastenCallGraphs, pkg)
 			}
-			<-guard
+
 		}(pkg, files)
 	}
 	wg.Wait()
