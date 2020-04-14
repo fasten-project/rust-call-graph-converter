@@ -4,6 +4,7 @@ import (
 	"RustCallGraphConverter/src/internal/fasten"
 	"RustCallGraphConverter/src/internal/rust"
 	"encoding/json"
+	"errors"
 	"flag"
 	"github.com/lovoo/goka"
 	"github.com/lovoo/goka/codec"
@@ -128,9 +129,11 @@ func getFiles(files []string) ([]byte, []byte) {
 	if strings.Contains(files[0], "callgraph.json") {
 		cgFile, _ = ioutil.ReadFile(files[0])
 		typeHierarchyFile, _ = ioutil.ReadFile(files[1])
-	} else {
+	} else if strings.Contains(files[0], "type_hierarchy.json"){
 		cgFile, _ = ioutil.ReadFile(files[1])
 		typeHierarchyFile, _ = ioutil.ReadFile(files[0])
+	} else {
+		panic(errors.New("compilation error"))
 	}
 
 	return cgFile, typeHierarchyFile
