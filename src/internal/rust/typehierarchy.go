@@ -84,7 +84,14 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 	if strings.Contains(impl, "[") {
 		patternBrackets := regexp.MustCompile("\\[(.*?)\\]")
 		index := patternBrackets.FindAllIndex([]byte(impl), -1)
+		if len(index) > 1 {
+			implElements := strings.Split(impl, "::")
+			lastElement := implElements[len(implElements)-1]
+			impl = patternBrackets.ReplaceAllString(lastElement, "")
+			impl = "[" + impl[:len(impl)-1] + "]"
+		}
 
+		index = patternBrackets.FindAllIndex([]byte(impl), -1)
 		for i := 0; i < len(index); i++ {
 			insideBrackets := impl[index[i][0]+1 : index[i][1]-1]
 			if strings.Contains(insideBrackets, "generic") {
@@ -93,8 +100,10 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 				for _, genericIndex := range indices {
 					insideBrackets = insideBrackets[:genericIndex[0]] + "[]" + insideBrackets[genericIndex[0]:]
 				}
+				impl = impl[:index[i][0]] + insideBrackets + impl[index[i][1]:]
+			} else {
+				impl = impl[:index[i][0]] + insideBrackets + "[]" + impl[index[i][1]:]
 			}
-			impl = impl[:index[i][0]] + insideBrackets + impl[index[i][1]:]
 		}
 	}
 	impl = url.PathEscape(impl)
