@@ -81,6 +81,8 @@ func (fastenJSON *JSON) AddDependency(target *JSON) {
 	version := make([]string, 0)
 	if target.Version != "" {
 		version = append(version, target.Version)
+	} else {
+		version = append(version, "0.0.0")
 	}
 	fastenJSON.Depset[0] = append(fastenJSON.Depset[0], Dependency{
 		Product:     target.Product,
