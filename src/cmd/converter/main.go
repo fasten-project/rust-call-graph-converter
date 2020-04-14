@@ -67,16 +67,16 @@ func main() {
 				}
 			}()
 			defer wg.Done()
-			
+
 			cgFile, typeHierarchyFile := getFiles(files)
 
 			var callGraph rust.JSON
 			var typeHierarchy rust.TypeHierarchy
-			err := json.Unmarshal(cgFile, &callGraph)
-			err = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
+			_ = json.Unmarshal(cgFile, &callGraph)
+			_ = json.Unmarshal(typeHierarchyFile, &typeHierarchy)
 
 			start := time.Now()
-			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy, pkg)
+			fastenCallGraphs, _ := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy, pkg)
 			finalTime = time.Since(start).Seconds()
 
 			if *produceKafkaTopic != "[no-value-provided]" {
@@ -85,12 +85,6 @@ func main() {
 
 			if *outputDirectory != "[no-value-provided]" {
 				err = writeToDisk(fastenCallGraphs, pkg)
-			}
-
-			if err == nil {
-
-			} else {
-
 			}
 			<-guard
 		}(pkg, files)
