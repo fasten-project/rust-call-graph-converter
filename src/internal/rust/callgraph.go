@@ -37,6 +37,7 @@ type CratesioVersion struct {
 
 //Converts rustJSON to FastenJSON.
 func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdTypeHierarchy MapTypeHierarchy, pkg string) (fasten.JSON, error) {
+	var err error
 	var jsons = make(map[string]*fasten.JSON)
 	var methods = make(map[int64]string)
 	var edgeMap = make(map[int64][]int64)
@@ -56,7 +57,8 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 				Timestamp: -1,
 			}
 		}
-		id := addMethodToCHA(jsons, node, typeHierarchy)
+		var id []int64
+		id, err = addMethodToCHA(jsons, node, typeHierarchy)
 		edgeMap[node.Id] = id
 		methods[node.Id] = node.CrateName
 	}
@@ -73,7 +75,7 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 		return *result, nil
 	}
 
-	return fasten.JSON{}, nil
+	return fasten.JSON{}, err
 }
 
 // Add a call to graph of a source package.
@@ -110,22 +112,23 @@ func (rustJSON JSON) getTargetMethod(typeHierarchy MapTypeHierarchy, stdTypeHier
 		if typeHierarchy.isGenericType(rustJSON.Functions[targetIndex].RelativeDefId) {
 			return typeHierarchy.getGenericFullPaths(path)
 		}
-		return []string{path}
 	}
 	if path, err := stdTypeHierarchy.getFullPath(rustJSON.Functions[targetIndex].RelativeDefId); err == nil {
 		if typeHierarchy.isGenericType(rustJSON.Functions[targetIndex].RelativeDefId) {
 			return typeHierarchy.getGenericFullPaths(path)
 		}
-		return []string{path}
 	}
-	return []string{"UNKNOWN"}
+	return []string{}
 }
 
 // Add method to Class Hierarchy or passes control to addGenericMethodToCHA
 // in case the method is has generic types.
-func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) []int64 {
+func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) ([]int64, error) {
 	fastenJSON := jsons[node.CrateName]
-	path, _ := typeHierarchy.getFullPath(node.RelativeDefId)
+	path, err := typeHierarchy.getFullPath(node.RelativeDefId)
+	if err != nil {
+		return []int64{-1}, err
+	}
 	namespace := getNamespace(path)
 
 	if typeHierarchy.isGenericType(node.RelativeDefId) {
@@ -134,15 +137,15 @@ func addMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapT
 		id := fastenJSON.AddMethodToCHA(namespace, path)
 		fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
 		fastenJSON.AddFilenameToCHA(namespace, getFileName(node.SourceLocation, node.CrateName + "-" + node.PackageVersion))
-		return []int64{id}
+		return []int64{id}, err
 	}
 }
 
 // Processes a method with generic types and adds each generic type
 // to CHA separately.
-func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) []int64 {
+func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarchy MapTypeHierarchy) ([]int64, error) {
 	fastenJSON := jsons[node.CrateName]
-	fullPath, _ := typeHierarchy.getFullPath(node.RelativeDefId)
+	fullPath, err := typeHierarchy.getFullPath(node.RelativeDefId)
 	var ids []int64
 
 	paths := typeHierarchy.getGenericFullPaths(fullPath)
@@ -159,7 +162,7 @@ func addGenericMethodToCHA(jsons map[string]*fasten.JSON, node Node, typeHierarc
 		fastenJSON.AddInterfaceToCHA(namespace, typeHierarchy.getTraitFromTypeHierarchy(node.RelativeDefId))
 	}
 
-	return ids
+	return ids, err
 }
 
 // Format file information from rust call graph.
