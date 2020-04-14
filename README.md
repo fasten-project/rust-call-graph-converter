@@ -64,7 +64,7 @@ Code fragment 1. Example of `callgraph.json`
   "types": [
     {
       "id": 0,
-      "string_id": "&mut [S: generic]",
+      "string_id": "&mut [ConcreteType]",
       "package_name": "some_package",
       "package_version": "0.8.0",
       "relative_def_id": "crate_name[fa9d]::name[0]::space[0]::ConcreteType[0]"
@@ -74,7 +74,7 @@ Code fragment 1. Example of `callgraph.json`
       "string_id": "(A1: generic, A2: generic, A3: generic, )",
       "package_name": null,
       "package_version": null,
-      "relative_def_id": "crate_name[fa9d]::name[0]::space[0]::ConcreteType[0]::nestedFunction::OtherType[0]"
+      "relative_def_id": null
     }
   ],
   "traits": [
@@ -109,8 +109,7 @@ Code fragment 2. Example of `type_hierarchy.json`
 
 ## Output
 
-Every crate from `Functions` in rust call graphs is converted to a separate call graph in Fasten format. 
-The output for the example in _Code fragment 1_  will be two following Fasten call graphs:
+The output for the example in _Code fragment 1_  will be the following Fasten call graph:
 ```json
 {
   "product": "first_crate",
@@ -129,19 +128,19 @@ The output for the example in _Code fragment 1_  will be two following Fasten ca
   ],
   "version": "0.8.0",
   "cha": {
-    "/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A1%3A%20generic": {
+    "/name.space/%26mut%20ConcreteType%5B%5D.nestedFunction%28%29$A1%3A%20generic": {
       "methods": {
-        "0": "/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A1%3A%20generic.function()"
+        "0": "/name.space/%26mut%20ConcreteType%5B%5D.nestedFunction%28%29$A1%3A%20generic.function()"
       }
     },
-    "/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A2%3A%20generic": {
+    "/name.space/%26mut%20ConcreteType%5B%5D.nestedFunction%28%29$A2%3A%20generic": {
       "methods": {
-        "1": "/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A2%3A%20generic.function()"
+        "1": "/name.space/%26mut%20ConcreteType%5B%5D.nestedFunction%28%29$A2%3A%20generic.function()"
       }
     },
-    "/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A3%3A%20generic": {
+    "/name.space/%26mut%20ConcreteType%5B%5D.nestedFunction%28%29$A3%3A%20generic": {
       "methods": {
-        "2": "/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A3%3A%20generic.function()"
+        "2": "/name.space/%26mut%20ConcreteType%5B%5D.nestedFunction%28%29$A3%3A%20generic.function()"
       }
     },
     "/other_name_space/NO-TYPE-DEFINITION": {
@@ -154,7 +153,10 @@ The output for the example in _Code fragment 1_  will be two following Fasten ca
     "internalCalls": [
       [ 0, 3 ],
       [ 1, 3 ],
-      [ 2, 3 ]
+      [ 2, 3 ],
+      [ 3, 0 ],
+      [ 3, 1 ],
+      [ 3, 2 ]
     ],
     "externalCalls": [
       [ 0, "//other_crate//NO-TYPE-DEFINITION.function()" ],
@@ -165,43 +167,7 @@ The output for the example in _Code fragment 1_  will be two following Fasten ca
   "timestamp": -1
 }
 ```
-Code fragment 3. Fasten Call graph for crate `first_crate`
-
-```json
-{
-  "product": "other_crate",
-  "forge": "cratesio",
-  "generator": "rust-callgraphs",
-  "depset": [
-    [
-      {
-        "product": "first_crate",
-        "forge": "cratesio",
-        "constraints": [
-          "0.8.0"
-        ]
-      }
-    ]
-  ],
-  "version": "1.3.7",
-  "cha": {
-    "//NO-TYPE-DEFINITION": {
-      "methods": {
-        "0": "//NO-TYPE-DEFINITION.function()"
-      }
-    }
-  },
-  "graph": {
-    "externalCalls": [
-      [ 0, "//first_crate/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A1%3A%20generic.function()" ],
-      [ 0, "//first_crate/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A2%3A%20generic.function()" ],
-      [ 0, "//first_crate/name.space/%26mut%20S%5B%5D%3A%20generic.nestedFunction%28%29$A3%3A%20generic.function()" ]
-    ]
-  },
-  "timestamp": -1
-}
-```
-Code fragment 4. Fasten Call graph for package `other_crate`
+Code fragment 3. Fasten Call graph for package `first_crate`
 
 ## Run 
 
