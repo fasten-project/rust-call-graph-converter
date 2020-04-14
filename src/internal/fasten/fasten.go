@@ -18,9 +18,9 @@ type JSON struct {
 }
 
 type Dependency struct {
-	Product     string   `json:"product,omitempty"`
-	Forge       string   `json:"forge,omitempty"`
-	Constraints []string `json:"constraints,omitempty"`
+	Product     string   `json:"product"`
+	Forge       string   `json:"forge"`
+	Constraints []string `json:"constraints,nilasempty"`
 }
 
 type Type struct {
@@ -56,19 +56,36 @@ func (fastenJSON *JSON) AddDependency(target *JSON) {
 
 	for _, inner := range fastenJSON.Depset {
 		for _, dependency := range inner {
-			if dependency.Product == target.Product &&
-				dependency.Constraints[0] == target.Version {
-				return
+			if dependency.Product == target.Product {
+				found := false
+				if target.Version == "" {
+					return
+				}
+				for _, constraint := range dependency.Constraints {
+					 if constraint == target.Version {
+						found = true
+						break
+					}
+				}
+				if found {
+					return
+				} else if target.Version != "" {
+					return
+				}
 			}
 		}
 	}
 	if len(fastenJSON.Depset) == 0 {
 		fastenJSON.Depset = append(fastenJSON.Depset, []Dependency{})
 	}
+	version := make([]string, 0)
+	if target.Version != "" {
+		version = append(version, target.Version)
+	}
 	fastenJSON.Depset[0] = append(fastenJSON.Depset[0], Dependency{
 		Product:     target.Product,
 		Forge:       "cratesio",
-		Constraints: []string{target.Version},
+		Constraints: version,
 	})
 }
 
