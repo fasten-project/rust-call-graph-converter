@@ -57,8 +57,17 @@ func main() {
 	for pkg, files := range callgraphs {
 		guard <- struct{}{}
 		go func(pkg string, files []string) {
-			defer wg.Done()
+			var finalTime float64
 
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Failed to convert: %s, ERROR: %s", pkg, r.(error))
+				} else {
+					log.Printf("Succesfully converted: %s in %f sec", pkg, finalTime)
+				}
+			}()
+			defer wg.Done()
+			
 			cgFile, typeHierarchyFile := getFiles(files)
 
 			var callGraph rust.JSON
@@ -68,7 +77,7 @@ func main() {
 
 			start := time.Now()
 			fastenCallGraphs, err := callGraph.ConvertToFastenJson(typeHierarchy, stdTypeHierarchy, pkg)
-			end := time.Since(start).Seconds()
+			finalTime = time.Since(start).Seconds()
 
 			if *produceKafkaTopic != "[no-value-provided]" {
 				err = writeToKafka(fastenCallGraphs, pkg)
@@ -79,9 +88,9 @@ func main() {
 			}
 
 			if err == nil {
-				log.Printf("Succesfully converted: %s in %f sec", pkg, end)
+
 			} else {
-				log.Printf("Failed to convert: %s, ERROR: %s", pkg, err)
+
 			}
 			<-guard
 		}(pkg, files)
