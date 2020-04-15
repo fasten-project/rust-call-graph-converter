@@ -58,7 +58,10 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 				Depset:    [][]fasten.Dependency{},
 				Version:   version,
 				Cha:       map[string]fasten.Type{},
-				Graph:     fasten.CallGraph{},
+				Graph:     fasten.CallGraph{
+					InternalCalls: make([][]int64, 0),
+					ExternalCalls: make([][]interface{}, 0),
+				},
 				Timestamp: -1,
 			}
 		}

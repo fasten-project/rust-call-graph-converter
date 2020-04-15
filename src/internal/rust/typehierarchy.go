@@ -209,7 +209,7 @@ func (typeHierarchy MapTypeHierarchy) getTraitFromTypeHierarchy(relativeDefId st
 	if implementation, ok := typeHierarchy.Impls[relativeDefId]; ok {
 		if implementation.TraitId != 0 {
 			id := implementation.TraitId
-			return getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId)
+			return typeHierarchy.getTraitPath(typeHierarchy.Traits[id-typeHierarchy.Traits[0].Id].RelativeDefId)
 		}
 	}
 	return ""
@@ -223,20 +223,18 @@ func getNamespace(method string) string {
 }
 
 // Convert relativeDefId of a Trait to Fasten format.
-func getTraitPath(relativeDefId string) string {
-	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
-	relativeDefId = squareBracketsPattern.ReplaceAllString(relativeDefId, "")
+func (typeHierarchy MapTypeHierarchy) getTraitPath(relativeDefId string) string {
+	fullPath, _ := typeHierarchy.getFullPath(relativeDefId)
+	fullPath = fullPath[:len(fullPath) - 2]
 
-	elements := strings.Split(relativeDefId, "::")
-
-	// TODO: check if including crate is necessary
-	path := "/" + elements[0]
-	for _, elem := range elements[1 : len(elements)-1] {
-		path += "." + elem
+	if strings.Contains(fullPath, "NO-TYPE-DEFINITION.") {
+		fullPath = strings.ReplaceAll(fullPath, "NO-TYPE-DEFINITION.", "")
+	} else {
+		lastDot := strings.LastIndex(fullPath, ".")
+		fullPath = fullPath[:lastDot] + "$" + fullPath[lastDot + 1:]
 	}
-	path += "/" + elements[len(elements)-1]
 
-	return path
+	return fullPath
 }
 
 // Check if the given RelativeDefId contains generic types.
