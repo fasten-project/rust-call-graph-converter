@@ -100,7 +100,13 @@ func (rustJSON JSON) addCallToGraph(jsons map[string]*fasten.JSON, methods map[i
 
 		for _, sourceMethod := range edgeMap[sourceIndex] {
 			for _, targetMethod := range rustJSON.getTargetMethod(typeHierarchy, stdTypeHierarchy, targetIndex) {
-				source.AddExternalCall(sourceMethod, "//"+target.Forge+"!"+target.Product+"$"+target.Version+targetMethod)
+				var metadata = make(map[string]string)
+				if edge[2] == true {
+					metadata["dispatch"] = "static"
+				} else {
+					metadata["dispatch"] = "dynamic"
+				}
+				source.AddExternalCall(sourceMethod, "//"+target.Forge+"!"+target.Product+"$"+target.Version+targetMethod, metadata)
 			}
 		}
 	} else {

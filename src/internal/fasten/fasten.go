@@ -149,6 +149,6 @@ func (fastenJSON *JSON) AddInternalCall(sourceId int64, targetId int64) {
 }
 
 // Add external call to the Graph.
-func (fastenJSON *JSON) AddExternalCall(sourceId int64, target string) {
-	fastenJSON.Graph.ExternalCalls = append(fastenJSON.Graph.ExternalCalls, []interface{}{strconv.FormatInt(sourceId, 10), target, map[string]string{}})
+func (fastenJSON *JSON) AddExternalCall(sourceId int64, target string, metadata map[string]string) {
+	fastenJSON.Graph.ExternalCalls = append(fastenJSON.Graph.ExternalCalls, []interface{}{strconv.FormatInt(sourceId, 10), target, metadata})
 }
