@@ -134,6 +134,7 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 	formattedRelativeDefId = patternClosure.ReplaceAllString(relativeDefId, "")
 	formattedRelativeDefId = patternConstant.ReplaceAllString(formattedRelativeDefId, "")
 	formattedRelativeDefId = squareBracketsPattern.ReplaceAllString(formattedRelativeDefId, "")
+	formattedRelativeDefId = strings.ReplaceAll(formattedRelativeDefId, "{{constructor}}","EXPLICIT-CONSTRUCTOR")
 
 	rawElements := strings.Split(relativeDefId, "::")
 	elements := strings.Split(formattedRelativeDefId, "::")
@@ -146,7 +147,7 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 	var gotFirstImpl = false
 	var relativeDefPathCurrentLength = 0
 
-	var modules []string
+	var modules = make([]string, 0)
 	var impl string
 	var nestedElements []string
 	var function = elements[len(elements)-1]
@@ -178,6 +179,12 @@ func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string)
 	if !gotFirstImpl {
 		impl = "NO-TYPE-DEFINITION"
 	}
+
+	if strings.Contains(relativeDefId, "{{constructor}}") && len(modules) > 0 {
+		impl = modules[len(modules) - 1]
+		modules = modules[:len(modules) - 1]
+	}
+
 	if len(modules) == 0 {
 		modules = append(modules, "EMPTY-NAMESPACE")
 	}
