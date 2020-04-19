@@ -133,14 +133,13 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 // resolved type name, nested functions and types, function name.
 func (typeHierarchy MapTypeHierarchy) parseRelativeDefPath(relativeDefId string) ([]string, string, []string, string, error) {
 	patternClosure := regexp.MustCompile("::{{closure}}\\[[0-9]*]")
-	patternConstant := regexp.MustCompile("::{{constant}}\\[[0-9]*]")
 	squareBracketsPattern := regexp.MustCompile("\\[.*?]")
 
 	var formattedRelativeDefId string
 	formattedRelativeDefId = patternClosure.ReplaceAllString(relativeDefId, "")
-	formattedRelativeDefId = patternConstant.ReplaceAllString(formattedRelativeDefId, "")
 	formattedRelativeDefId = squareBracketsPattern.ReplaceAllString(formattedRelativeDefId, "")
 	formattedRelativeDefId = strings.ReplaceAll(formattedRelativeDefId, "{{constructor}}","EXPLICIT-CONSTRUCTOR")
+	formattedRelativeDefId = strings.ReplaceAll(formattedRelativeDefId, "{{constant}}", "CONSTANT-FUNC")
 
 	rawElements := strings.Split(relativeDefId, "::")
 	elements := strings.Split(formattedRelativeDefId, "::")
