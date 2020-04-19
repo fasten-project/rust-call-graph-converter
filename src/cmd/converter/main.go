@@ -95,7 +95,7 @@ func main() {
 	}
 	wg.Wait()
 	totalEnd := time.Since(totalStart).Seconds()
-	log.Printf("Processign of %d callgraphs took %f seconds", len(callgraphs), totalEnd)
+	log.Printf("Processing of %d callgraphs took %f seconds", len(callgraphs), totalEnd)
 }
 
 // Walk the current directory and return a map containing a /packageName/packageVersion/
@@ -107,7 +107,7 @@ func getCallGraphs() map[string][]string {
 	for _, cg := range cgs {
 		if !strings.HasPrefix(cg.Name(), ".") {
 			_ = filepath.Walk(*inputDirectory+"/"+cg.Name(), func(path string, f os.FileInfo, err error) error {
-				if f.Mode().IsRegular() && !strings.HasPrefix(f.Name(), ".") && strings.Contains(f.Name(), ".json") {
+				if f.Mode().IsRegular() && !strings.HasPrefix(f.Name(), ".") && (strings.Contains(f.Name(), ".json") || strings.Contains(f.Name(), ".log")) {
 					packageName := strings.TrimPrefix(path, *inputDirectory)
 					filename := strings.Split(packageName, string(filepath.Separator))
 					packageName = strings.TrimSuffix(packageName, filename[len(filename)-1])
@@ -125,6 +125,18 @@ func getCallGraphs() map[string][]string {
 func getFiles(files []string) ([]byte, []byte) {
 	var cgFile []byte
 	var typeHierarchyFile []byte
+
+	var filteredFiles []string
+	for _, file := range files {
+		if strings.Contains(file, ".json") {
+			filteredFiles = append(filteredFiles, file)
+		}
+	}
+	if len(filteredFiles) == 0 {
+		panic(errors.New("compilation error"))
+	} else if len(filteredFiles) == 1 {
+		panic(errors.New("missing callgraph or type hierarchy"))
+	}
 
 	if strings.Contains(files[0], "callgraph.json") {
 		cgFile, _ = ioutil.ReadFile(files[0])

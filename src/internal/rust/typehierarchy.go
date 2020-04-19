@@ -120,6 +120,12 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 	}
 	fullPath += "." + method + "()"
 
+	if strings.Contains(fullPath, "{") ||
+		strings.Contains(fullPath, "}") ||
+		strings.Contains(fullPath, ":") {
+		panic(errors.New("illegal character in full path"))
+	}
+
 	return fullPath, err
 }
 
