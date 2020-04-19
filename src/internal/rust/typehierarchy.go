@@ -113,8 +113,14 @@ func (typeHierarchy MapTypeHierarchy) getFullPath(relativeDefId string) (string,
 
 	for _, element := range nestedElements {
 		if element[:1] == "$" {
-			fullPath += "$" + url.PathEscape(element[1:])
+			element = url.PathEscape(element[1:])
+			element = strings.ReplaceAll(element, ":", "%3A")
+			element = strings.ReplaceAll(element, "&", "%26")
+			fullPath += "$" + element
 		} else {
+			element = url.PathEscape(element)
+			element = strings.ReplaceAll(element, ":", "%3A")
+			element = strings.ReplaceAll(element, "&", "%26")
 			fullPath += "." + url.PathEscape(element)
 		}
 	}
