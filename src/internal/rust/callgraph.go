@@ -58,11 +58,14 @@ func (rustJSON JSON) ConvertToFastenJson(rawTypeHierarchy TypeHierarchy, stdType
 				Depset:    [][]fasten.Dependency{},
 				Version:   version,
 				Cha:       map[string]fasten.Type{},
-				Graph:     fasten.CallGraph{
+				Graph: fasten.CallGraph{
 					InternalCalls: make([][]int64, 0),
 					ExternalCalls: make([][]interface{}, 0),
 				},
-				Timestamp: -1,
+				Timestamp:             -1,
+				DuplicateCHA:          make(map[string]int64),
+				DuplicateInternalCall: make(map[int64]map[int64]struct{}),
+				DuplicateExternalCall: make(map[int64]map[string]struct{}),
 			}
 		}
 		id := addMethodToCHA(jsons, node, typeHierarchy)

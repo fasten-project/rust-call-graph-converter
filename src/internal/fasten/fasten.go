@@ -15,7 +15,10 @@ type JSON struct {
 	Graph     CallGraph       `json:"graph"`
 	Timestamp int64           `json:"timestamp"`
 
-	Counter int64 `json:"-"`
+	Counter               int64                         `json:"-"`
+	DuplicateCHA          map[string]int64              `json:"-"`
+	DuplicateInternalCall map[int64]map[int64]struct{}  `json:"-"`
+	DuplicateExternalCall map[int64]map[string]struct{} `json:"-"`
 }
 
 type Dependency struct {
@@ -63,7 +66,7 @@ func (fastenJSON *JSON) AddDependency(target *JSON) {
 					return
 				}
 				for _, constraint := range dependency.Constraints {
-					 if constraint == target.Version {
+					if constraint == target.Version {
 						found = true
 						break
 					}
@@ -94,10 +97,13 @@ func (fastenJSON *JSON) AddMethodToCHA(namespace string, methodName string) int6
 
 	fastenJSON.initializeCHANamespace(namespace)
 
-	fastenJSON.Cha[namespace].Methods[fastenJSON.Counter] = methodName
-	fastenJSON.Counter++
+	if _, exists := fastenJSON.DuplicateCHA[methodName]; !exists {
+		fastenJSON.Cha[namespace].Methods[fastenJSON.Counter] = methodName
+		fastenJSON.DuplicateCHA[methodName] = fastenJSON.Counter
+		fastenJSON.Counter++
+	}
 
-	return fastenJSON.Counter - 1
+	return fastenJSON.DuplicateCHA[methodName]
 }
 
 // Add interface to Class Hierarchy.
@@ -145,10 +151,18 @@ func (fastenJSON *JSON) initializeCHANamespace(namespace string) {
 
 // Add internal call to the Graph.
 func (fastenJSON *JSON) AddInternalCall(sourceId int64, targetId int64) {
-	fastenJSON.Graph.InternalCalls = append(fastenJSON.Graph.InternalCalls, []int64{sourceId, targetId})
+	if _, exists := fastenJSON.DuplicateInternalCall[sourceId][targetId]; !exists {
+		fastenJSON.Graph.InternalCalls = append(fastenJSON.Graph.InternalCalls, []int64{sourceId, targetId})
+		newEntry := map[int64]struct{}{targetId: {}}
+		fastenJSON.DuplicateInternalCall[sourceId] = newEntry
+	}
 }
 
 // Add external call to the Graph.
 func (fastenJSON *JSON) AddExternalCall(sourceId int64, target string, metadata map[string]string) {
-	fastenJSON.Graph.ExternalCalls = append(fastenJSON.Graph.ExternalCalls, []interface{}{strconv.FormatInt(sourceId, 10), target, metadata})
+	if _, exists := fastenJSON.DuplicateExternalCall[sourceId][target]; !exists {
+		fastenJSON.Graph.ExternalCalls = append(fastenJSON.Graph.ExternalCalls, []interface{}{strconv.FormatInt(sourceId, 10), target, metadata})
+		newEntry := map[string]struct{}{target: {}}
+		fastenJSON.DuplicateExternalCall[sourceId] = newEntry
+	}
 }
